@@ -117,7 +117,8 @@ final class constructor_prompt_keeps_target_names_test extends abstract_agent_te
             // No required field, no group: the skill resolves or asks itself.
             'wizard.list_memories' => 'Its required values: none - ask for nothing.',
             // A declared group: the group is named and a kind or role reference counts.
-            'mod_booking.update_rule_from_template' => 'one of ruleid | rulequery',
+            // update_rule_from_template lost its required group in wave 32 (George decision b); update_option keeps one.
+            'mod_booking.update_option' => 'one of optionid | optionquery',
         ];
         foreach ($cases as $skill => $expected) {
             [$store, $runtime, $threadid] = $this->build_runtime();
