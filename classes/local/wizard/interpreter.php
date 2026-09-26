@@ -27,6 +27,7 @@ namespace bookingextension_agent\local\wizard;
 use bookingextension_agent\local\wizard\services\construction\parameter_constructor;
 use bookingextension_agent\local\wizard\services\construction\parameter_contract_validator;
 use bookingextension_agent\local\wizard\services\input_payload_pruner;
+use bookingextension_agent\local\wizard\services\model_authored_text;
 use bookingextension_agent\local\wizard\services\selection\lazy_skill_loader;
 use bookingextension_agent\local\wizard\services\selection\skill_selector;
 use bookingextension_agent\local\wizard\interfaces\agent_interpreter;
@@ -108,6 +109,22 @@ class interpreter implements agent_interpreter {
      * @return array
      */
     public function interpret(string $rawresponse, int $contextid, int $userid, string $lastusermessage = ''): array {
+        return $this->mark_model_message(
+            $this->interpret_response($rawresponse, $contextid, $userid, $lastusermessage),
+            $rawresponse
+        );
+    }
+
+    /**
+     * Interpret a raw planner response (see interpret()).
+     *
+     * @param string $rawresponse
+     * @param int    $contextid
+     * @param int    $userid
+     * @param string $lastusermessage
+     * @return array
+     */
+    private function interpret_response(string $rawresponse, int $contextid, int $userid, string $lastusermessage): array {
         $this->lastparseissuecode = '';
         $this->lastparseinputexcerpt = '';
 
@@ -347,6 +364,18 @@ class interpreter implements agent_interpreter {
      * @return array
      */
     public function interpret_phase_output(string $rawresponse, string $phase, array $context = []): array {
+        return $this->mark_model_message($this->interpret_phase_response($rawresponse, $phase, $context), $rawresponse);
+    }
+
+    /**
+     * Interpret phase output (see interpret_phase_output()).
+     *
+     * @param string $rawresponse
+     * @param string $phase
+     * @param array $context
+     * @return array
+     */
+    private function interpret_phase_response(string $rawresponse, string $phase, array $context): array {
         $contextid = (int)($context['contextid'] ?? 0);
         $userid = (int)($context['userid'] ?? 0);
         $lastusermessage = (string)($context['lastusermessage'] ?? '');
@@ -972,6 +1001,33 @@ class interpreter implements agent_interpreter {
             $input = array_merge($input, (array)$payload['input']);
         }
         return $input;
+    }
+
+    /**
+     * Mark the result's message as model-written when it is exactly the message the model returned (George
+     * 2026-09-26: model text is never masked again; model_authored_text). Engine texts - parse errors, defaults such
+     * as "Executing.", contract messages - differ from the model's message and stay unmarked.
+     *
+     * @param array $result
+     * @param string $rawresponse
+     * @return array
+     */
+    private function mark_model_message(array $result, string $rawresponse): array {
+        $message = (string)($result['message'] ?? '');
+        if ($message === '') {
+            return $result;
+        }
+        $issuecode = $this->lastparseissuecode;
+        $excerpt = $this->lastparseinputexcerpt;
+        $parsed = $this->parse($rawresponse);
+        $this->lastparseissuecode = $issuecode;
+        $this->lastparseinputexcerpt = $excerpt;
+        $modelmessage = is_array($parsed) ? $this->safe_string($parsed['message'] ?? '') : '';
+        if ($modelmessage === '') {
+            return model_authored_text::mark($result, '');
+        }
+        $candidate = $message === $this->strip_command_prefix($modelmessage) ? $message : $modelmessage;
+        return model_authored_text::mark($result, $candidate);
     }
 
     /**

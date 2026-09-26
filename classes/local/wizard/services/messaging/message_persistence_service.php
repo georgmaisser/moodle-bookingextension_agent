@@ -28,6 +28,7 @@ namespace bookingextension_agent\local\wizard\services\messaging;
 
 use bookingextension_agent\local\wizard\conversation_store;
 use bookingextension_agent\local\wizard\privacy_anonymizer;
+use bookingextension_agent\local\wizard\services\model_authored_text;
 use bookingextension_agent\local\wizard\services\phase_trace_normalizer;
 
 /**
@@ -112,7 +113,11 @@ class message_persistence_service {
         // mints no single-word tokens (Lauf 8 F60): ordinary words stay readable in the history,
         // full names and e-mails of unmapped persons are still masked.
         $anonymizer = new privacy_anonymizer($this->store);
-        $content = (string)$anonymizer->anonymize_value_for_storage($threadid, (string)($result['message'] ?? ''));
+        // A reply that is exactly the model's text is stored as written: it holds placeholders already, and masking it
+        // again corrupts words the model saw in clear text (George 2026-09-26, N36 thread 13358).
+        $content = model_authored_text::is_model_message($result)
+            ? (string)$result['message']
+            : (string)$anonymizer->anonymize_value_for_storage($threadid, (string)($result['message'] ?? ''));
         $structured['errors'] = $anonymizer->anonymize_value_for_storage($threadid, (array)$structured['errors']);
         $this->store->add_message($threadid, 'assistant', $content, $structured);
     }

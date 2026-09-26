@@ -127,8 +127,8 @@ class synchronizer_output_contract {
             );
         }
 
-        $merged = $source;
-        $merged['message'] = $syncmessage;
+        // The synchronizer's reply is model text: resolved for display, never masked again (model_authored_text).
+        $merged = model_authored_text::mark(array_merge($source, ['message' => $syncmessage]), $syncmessage);
 
         $synclang = trim((string)($sync['lang'] ?? ''));
         if ($synclang !== '') {
@@ -327,7 +327,8 @@ class synchronizer_output_contract {
     private function apply_sync_message(array $source, string $message): array {
         $merged = $source;
         $merged['message'] = $message;
-        return $merged;
+        // The synchronizer's reply is model text: resolved for display, never masked again (model_authored_text).
+        return model_authored_text::mark($merged, $message);
     }
 
     /**

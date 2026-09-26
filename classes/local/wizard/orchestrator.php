@@ -45,6 +45,7 @@ use bookingextension_agent\local\wizard\services\provider_status_service;
 use bookingextension_agent\local\wizard\services\planner_catalog_service;
 use bookingextension_agent\local\wizard\services\runtime_context_block_builder;
 use bookingextension_agent\local\wizard\services\discovery_phase_service;
+use bookingextension_agent\local\wizard\services\model_authored_text;
 use bookingextension_agent\local\wizard\services\turn_skill_exclusions;
 use bookingextension_agent\local\wizard\services\planner_phase_service;
 use bookingextension_agent\local\wizard\services\synchronizer_prompt_builder;
@@ -309,6 +310,10 @@ class orchestrator {
                 'lang' => (string)($selectionstate['lang'] ?? ''),
                 'user_lang' => (string)($selectionstate['user_lang'] ?? ''),
             ];
+            // The selector's own words stay marked as model text (never masked again, model_authored_text).
+            if (model_authored_text::is_model_message($selectionstate)) {
+                $constructionstate = model_authored_text::mark($constructionstate, (string)$selectionstate['message']);
+            }
         } else {
             $constructionstate = $this->run_construction_phase(
                 $threadid,

@@ -50,6 +50,25 @@ class synchronizer_input_builder {
             return $result;
         }
         foreach (['message', 'errors', 'phase_trace'] as $key) {
+            if ($key === 'message' && model_authored_text::is_model_message($result)) {
+                // Model text travels one way only: never masked again (George 2026-09-26, N36 thread 13358).
+                continue;
+            }
+            if ($key === 'phase_trace' && is_array($result[$key] ?? null)) {
+                // Each phase snapshot keeps a message the model wrote; its other fields are masked as before.
+                foreach ($result[$key] as $phase => $snapshot) {
+                    if (!is_array($snapshot) || !model_authored_text::is_model_message($snapshot)) {
+                        $result[$key][$phase] = $anonymizer->anonymize_value_for_llm($threadid, $snapshot);
+                        continue;
+                    }
+                    $message = (string)$snapshot['message'];
+                    $masked = (array)$anonymizer->anonymize_value_for_llm($threadid, $snapshot);
+                    $masked['message'] = $message;
+                    $masked[model_authored_text::KEY] = $message;
+                    $result[$key][$phase] = $masked;
+                }
+                continue;
+            }
             if (array_key_exists($key, $result)) {
                 $result[$key] = $anonymizer->anonymize_value_for_llm($threadid, $result[$key]);
             }

@@ -64,7 +64,7 @@ class planner_result_composer {
      * @return array
      */
     private function build_phase_snapshot(array $state): array {
-        return [
+        $snapshot = [
             'response_type' => (string)($state['response_type'] ?? ''),
             'message' => (string)($state['message'] ?? ''),
             'phase' => (string)($state['phase'] ?? ''),
@@ -77,5 +77,9 @@ class planner_result_composer {
             // turn reads, never of any user-facing channel.
             'repair_hints' => (array)($state['repair_hints'] ?? []),
         ];
+        // The phase's own words stay marked as model text (model_authored_text): never masked again.
+        return model_authored_text::is_model_message($state)
+            ? model_authored_text::mark($snapshot, (string)$state['message'])
+            : $snapshot;
     }
 }

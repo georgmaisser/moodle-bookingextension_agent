@@ -296,7 +296,7 @@ class planner_phase_service {
 
         $selectedskill = $this->extract_selected_skill_from_selection_phase_output($phaseoutput);
 
-        return [
+        $selectionstate = [
             'prompt' => $prompt,
             'debugsource' => $debugsource,
             'lastusermessage' => $lastusermessage,
@@ -316,6 +316,10 @@ class planner_phase_service {
             'error_class' => (string)($phaseoutput['error_class'] ?? ''),
             'planned_steps' => (array)($phaseoutput['planned_steps'] ?? []),
         ];
+        // The selector's own words stay marked as model text (never masked again, model_authored_text).
+        return is_array($phaseoutput) && model_authored_text::is_model_message($phaseoutput)
+            ? model_authored_text::mark($selectionstate, (string)$phaseoutput['message'])
+            : $selectionstate;
     }
 
     /**
