@@ -292,4 +292,21 @@ final class analyze_course_structure_test extends advanced_testcase {
         }
         return null;
     }
+
+    /**
+     * Wave 32 (ACS-2/ACS-4, L30/L33/L38/L40): the card says inside the selector window that a named course
+     * needs no lookup, and the field no longer sends the model to course.search_courses first.
+     */
+    public function test_a_named_course_needs_no_lookup(): void {
+        $schema = (new analyze_course_structure_skill())->get_schema();
+        $window = \core_text::substr((string)$schema['description'], 0, 240);
+        $this->assertStringContainsString('coursequery', $window);
+        $this->assertStringContainsString('no lookup needed', $window);
+        $this->assertStringNotContainsString(
+            'search_courses',
+            (string)$schema['properties']['coursequery']['description']
+        );
+        // Review: the field text fits the constructor's field window, so no half of it is cut off.
+        $this->assertLessThanOrEqual(159, \core_text::strlen((string)$schema['properties']['coursequery']['description']));
+    }
 }
