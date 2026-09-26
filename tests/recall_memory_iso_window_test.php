@@ -54,6 +54,16 @@ final class recall_memory_iso_window_test extends \advanced_testcase {
     }
 
     /**
+     * Wave 32 (A3): the card sentence about date_from is one sentence, not "ISO date.mandatory." — every word
+     * stays separated from the next by whitespace after a full stop (constructor request of thread 10894).
+     */
+    public function test_the_description_has_no_glued_sentences(): void {
+        $description = (string)((new recall_memory_skill())->get_schema()['description'] ?? '');
+        $this->assertDoesNotMatchRegularExpression('/\.[A-Za-z]/', $description, $description);
+        $this->assertStringContainsString('date_from', $description);
+    }
+
+    /**
      * Run 33 bytes: a phrase in a date field is refused as a recoverable input error, an ISO date is accepted.
      */
     public function test_a_phrase_is_refused_and_an_iso_date_accepted(): void {

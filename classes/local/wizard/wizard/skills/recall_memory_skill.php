@@ -86,8 +86,9 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
             'version' => 1,
             'description' => 'Recall previous user-only conversation memory. Use mode="last_thread" for requests like "last '
                 . 'time/yesterday" and mode="date_window" only for date-specific requests. When mode="date_window", '
-                . 'date_from is an ISO date.'
-                . 'mandatory. User isolation is strict and userid is never accepted from input.',
+                // Wave 32 (A3): e08b63b left the old tail "mandatory." glued to the new sentence, so every card
+                // since L36 read "date_from is an ISO date.mandatory." (constructor request of thread 10894).
+                . 'date_from is a mandatory ISO date. User isolation is strict and userid is never accepted from input.',
             'is' => 'Previous conversation.',
             'not' => 'Facts the user asked the agent to remember (list_memories, remember, forget).',
             'readonly' => $this->is_read_only(),
