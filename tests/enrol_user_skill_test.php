@@ -48,8 +48,12 @@ final class enrol_user_skill_test extends advanced_testcase {
         $this->assertArrayHasKey('coursequery', (array)$schema['properties']);
         $this->assertSame(['course'], (array)($schema['prompt_meta']['context_scopes'] ?? []));
 
-        $structure = $skill->check_structure([]);
-        $this->assertFalse($structure['valid']);
+        // Wave 32 (EU-3): an empty person is the requester (F81), not a structural error.
+        $this->assertTrue($skill->check_structure([])['valid']);
+        $this->assertFalse($skill->check_structure(['userquery' => str_repeat('x', 300)])['valid']);
+        $this->assertFalse((bool)($schema['properties']['userquery']['required'] ?? false));
+        $this->assertStringNotContainsString('"me"', (string)$schema['properties']['userquery']['description']);
+        $this->assertLessThanOrEqual(159, \core_text::strlen((string)$schema['properties']['userquery']['description']));
     }
 
     /**
@@ -288,6 +292,48 @@ final class enrol_user_skill_test extends advanced_testcase {
     }
 
     /**
+     * Wave 32 review (EU-2): several roles carrying the query with the same token count end as a
+     * clarification with exactly those roles as options - never as an error, never a guess. The question
+     * comes from the language pack and carries no issue code.
+     */
+    public function test_two_equally_qualified_roles_end_as_a_role_question(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        global $USER;
+
+        $gen = $this->getDataGenerator();
+        $course = $gen->create_course();
+        $gen->create_user(['email' => 'greta@example.com']);
+        $first = create_role('Tutor North', 'tutornorth', '');
+        $second = create_role('Tutor South', 'tutorsouth', '');
+        set_role_contextlevels($first, [CONTEXT_COURSE]);
+        set_role_contextlevels($second, [CONTEXT_COURSE]);
+
+        $dto = (new enrol_user_skill())->preflight(
+            ['userquery' => 'greta@example.com', 'role' => 'Tutor'],
+            (int)context_course::instance($course->id)->id,
+            (int)$USER->id
+        );
+        $result = $dto->to_array();
+
+        $this->assertNotSame('pass', $result['status']);
+        $this->assertContains('ENROL_ROLE_AMBIGUOUS', (array)($result['issue_codes'] ?? []));
+        $issue = (array)$dto->issues[0];
+        $this->assertSame('needs_clarification', $issue['severity']);
+        $offered = array_column((array)($issue['options'] ?? []), 'roleid');
+        sort($offered);
+        $this->assertSame([(int)$first, (int)$second], array_map('intval', $offered));
+        $this->assertStringNotContainsString('ENROL_ROLE_AMBIGUOUS', (string)$issue['message']);
+        $this->assertSame(
+            get_string('agent_enrol_role_ambiguous', 'bookingextension_agent', (object)[
+                'query' => 'Tutor',
+                'candidates' => 'Tutor North (tutornorth); Tutor South (tutorsouth)',
+            ]),
+            (string)$issue['message']
+        );
+    }
+
+    /**
      * Without enrol/manual:enrol the preflight stops at Gate 2.
      */
     public function test_user_without_capability_is_stopped(): void {
@@ -320,5 +366,44 @@ final class enrol_user_skill_test extends advanced_testcase {
         $skill = $registry->get_skill('course.enrol_user');
 
         $this->assertInstanceOf(enrol_user_skill::class, $skill);
+    }
+
+    /**
+     * Wave 32 (EU-3, L36-L41): "add me to the course" - the constructor leaves the person empty, and the
+     * requester is enrolled. Before, the card asked for "me", which was searched as a name on the site.
+     */
+    public function test_an_empty_person_enrols_the_requester(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        global $USER;
+
+        $course = $this->getDataGenerator()->create_course();
+        $dto = (new enrol_user_skill())->preflight(
+            [],
+            (int)context_course::instance($course->id)->id,
+            (int)$USER->id
+        );
+
+        $this->assertSame('pass', $dto->to_array()['status'], json_encode($dto->issues));
+        $this->assertSame((int)$USER->id, (int)$dto->preparedinput['userid']);
+    }
+
+    /**
+     * Wave 32 (EU-2, L42sol thread 13095): a role named by one of its tokens resolves to the least
+     * qualified role carrying it; the names below mirror the German Moodle role names by shape only.
+     */
+    public function test_a_role_named_by_its_token_resolves_to_the_unqualified_role(): void {
+        $assignable = [3 => 'Trainer/in', 4 => 'Trainer/in ohne Bearbeitungsrecht', 5 => 'Teilnehmer/in'];
+        $shortnames = [
+            3 => (object)['shortname' => 'editingteacher'],
+            4 => (object)['shortname' => 'teacher'],
+            5 => (object)['shortname' => 'student'],
+        ];
+        $this->assertSame([3 => 'Trainer/in'], enrol_user_skill::roles_covering_query('Trainer', $assignable, $shortnames));
+        // Two roles carrying the query with the same token count stay ambiguous: the caller asks.
+        $tie = [7 => 'Tutor A', 8 => 'Tutor B'];
+        $this->assertCount(2, enrol_user_skill::roles_covering_query('Tutor', $tie, []));
+        // A token no role carries resolves nothing: the caller reports it as not assignable.
+        $this->assertSame([], enrol_user_skill::roles_covering_query('Manager', $assignable, $shortnames));
     }
 }

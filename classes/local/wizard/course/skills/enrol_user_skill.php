@@ -136,10 +136,12 @@ class enrol_user_skill extends core_skill_base implements skill_trigger_provider
         return [
             'version' => 1,
             // First 240 characters = selector window (#2419, #2423 EU-4 "needs access to the first-aid course").
+            // Wave 32 (EU-2, runs L31-L41): "als Trainer im Beschaffungskurs eintragen" went to the booking trainer
+            // skill six times; this card never said that a course role other than student is part of an enrolment.
             'description' => 'Give an EXISTING user — or the asking person — access to a Moodle course (coursequery) by enrolling '
-                . 'them (manual enrolment, role default student). Use when the user wants to enrol/add/put a person (or '
-                . 'themselves) into a course; the role is optional.',
-            'is' => 'Enrolling into a Moodle course.',
+                . 'them with a course role: student by default, or the teacher/trainer role the user names. Use when the '
+                . 'user wants to enrol/add/put a person (or themselves) into a course.',
+            'is' => 'Enrolling a person into a Moodle course, as student or with a named course role such as teacher.',
             'not' => 'Booking into a booking option (mod_booking.book_users); creating accounts.',
             'readonly' => false,
             'example_utterances' => [
@@ -152,10 +154,12 @@ class enrol_user_skill extends core_skill_base implements skill_trigger_provider
             'properties' => [
                 'userquery' => [
                     'type' => 'string',
-                    'description' => 'Who to enrol: the user\'s wording verbatim — a name (e.g. "Anna Muster"), an '
-                        . 'email address or a numeric user id. Use "me" when the user means themselves. The system '
-                        . 'resolves it and asks if several people match.',
-                    'required' => true,
+                    // Wave 32 (EU-3, runs L36-L41): since F81 (e08b63b) "me" is no self-reference any more — an EMPTY
+                    // person field is the requester. The old text told the constructor to write "me", and the skill
+                    // then searched the site for people matching "me" (ENROL_USER_AMBIGUOUS in six runs).
+                    'description' => 'Who to enrol: a name, an email address or a numeric user id, as the user wrote it. '
+                        . 'Leave it empty when the user means themselves. The system resolves it.',
+                    'required' => false,
                 ],
                 'userid' => [
                     'type' => 'integer',
@@ -237,7 +241,8 @@ class enrol_user_skill extends core_skill_base implements skill_trigger_provider
                 'guidance' => [
                     '- course.enrol_user enrols an EXISTING user into a course; it never creates accounts.',
                     '- Pass the person exactly as the user wrote them (name, email or id) in input.userquery; '
-                        . 'the system resolves and asks when several people match.',
+                        . 'leave it empty when the user means themselves. The system resolves and asks when several '
+                        . 'people match.',
                     '- Only set input.role when the user named one; otherwise leave it empty for the default role.',
                     '- For booking people into booking OPTIONS use mod_booking.book_users instead, not this skill.',
                 ],
@@ -254,11 +259,8 @@ class enrol_user_skill extends core_skill_base implements skill_trigger_provider
     public function check_structure(array $input): array {
         $errors = [];
 
+        // An empty person (no userquery, no userid) is the requester (F81): no structural error.
         $userquery = trim((string)($input['userquery'] ?? ''));
-        $userid = (int)($input['userid'] ?? 0);
-        if ($userquery === '' && $userid <= 0) {
-            $errors[] = 'userquery is required: the name, email or id of the user to enrol.';
-        }
         if (strlen($userquery) > 255) {
             $errors[] = 'userquery is too long.';
         }
@@ -499,6 +501,33 @@ class enrol_user_skill extends core_skill_base implements skill_trigger_provider
             }
         }
 
+        // Wave 32 (EU-2, run L42sol thread 13095): "Trainer" matched neither "Trainer/in" nor
+        // "Trainer/in ohne Bearbeitungsrecht" exactly and was reported as NOT ASSIGNABLE, although it is.
+        // Structural fallback, no word list: a role whose name carries every token of the query is a
+        // candidate; among several, the one with the fewest tokens is the unqualified role. The choice is
+        // shown in the confirmation preview (R2), so nothing is written without the user seeing the role.
+        if (empty($matches)) {
+            $matches = self::roles_covering_query($rolequery, $assignable, $shortnames);
+        }
+
+        if (count($matches) > 1) {
+            $available = [];
+            $options = [];
+            foreach ($matches as $roleid => $name) {
+                $shortname = isset($shortnames[$roleid]) ? (string)$shortnames[$roleid]->shortname : '';
+                $available[] = $name . ($shortname !== '' ? ' (' . $shortname . ')' : '');
+                $options[] = ['roleid' => (int)$roleid, 'name' => (string)$name];
+            }
+            return ['clarify' => $this->clarify(
+                get_string('agent_enrol_role_ambiguous', 'bookingextension_agent', (object)[
+                    'query' => $rolequery,
+                    'candidates' => implode('; ', $available),
+                ]),
+                'ENROL_ROLE_AMBIGUOUS',
+                $options
+            )];
+        }
+
         if (count($matches) !== 1) {
             $available = [];
             foreach (array_slice($assignable, 0, self::MAX_CANDIDATES, true) as $roleid => $name) {
@@ -574,6 +603,50 @@ class enrol_user_skill extends core_skill_base implements skill_trigger_provider
                 'courseid' => (int)$course->id,
             ],
         ];
+    }
+
+    /**
+     * Roles whose name (or shortname) carries every token of the query, narrowed to the least qualified one.
+     *
+     * Tokens are runs of letters/digits of any script; no word is known here. "Trainer" is carried by
+     * "Trainer/in" (2 tokens) and "Trainer/in ohne Bearbeitungsrecht" (4 tokens): the role with the fewest
+     * tokens wins when it is the only one with that count, otherwise every carrying role is returned so the
+     * caller can ask.
+     *
+     * @param string $rolequery
+     * @param array<int,string> $assignable roleid => localized name
+     * @param array<int,\stdClass> $shortnames roleid => record with shortname
+     * @return array<int,string> roleid => name
+     */
+    public static function roles_covering_query(string $rolequery, array $assignable, array $shortnames): array {
+        $tokenize = static function (string $text): array {
+            $parts = preg_split('/[^\p{L}\p{N}]+/u', \core_text::strtolower($text), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            return array_values(array_unique($parts));
+        };
+        $querytokens = $tokenize($rolequery);
+        if (empty($querytokens)) {
+            return [];
+        }
+
+        $covering = [];
+        $sizes = [];
+        foreach ($assignable as $roleid => $name) {
+            $shortname = isset($shortnames[$roleid]) ? (string)$shortnames[$roleid]->shortname : '';
+            foreach ([(string)$name, $shortname] as $label) {
+                $labeltokens = $tokenize($label);
+                if ($labeltokens !== [] && array_diff($querytokens, $labeltokens) === []) {
+                    $covering[(int)$roleid] = (string)$name;
+                    $sizes[(int)$roleid] = min($sizes[(int)$roleid] ?? PHP_INT_MAX, count($labeltokens));
+                }
+            }
+        }
+        if (count($covering) <= 1) {
+            return $covering;
+        }
+
+        $smallest = min($sizes);
+        $least = array_keys(array_filter($sizes, static fn(int $size): bool => $size === $smallest));
+        return count($least) === 1 ? [$least[0] => $covering[$least[0]]] : $covering;
     }
 
     /**
