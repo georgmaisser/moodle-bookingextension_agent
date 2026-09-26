@@ -46,6 +46,9 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
     /** Cap on suggested capability names when the given one is unknown. */
     private const MAX_SUGGESTIONS = 8;
 
+    /** Cap on the whole candidate list for an unknown capability (rule "Auswahl statt Error": at most 50). */
+    private const MAX_CANDIDATES = 50;
+
     /**
      * Constructor. Read-only diagnosis (R0).
      */
@@ -107,8 +110,10 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
             'properties' => [
                 'userquery' => [
                     'type' => 'string',
-                    'description' => 'Name, e-mail or id of the person. "me" or empty = the current user. '
-                        . 'If the name is ambiguous, provide a more specific name or the e-mail address.',
+                    // Wave 32 (A3): the old text 'Name ... "me" or empty = the current user' contradicted F81
+                    // (e08b63b): resolve_userid no longer knows the word "me", only an EMPTY field means the requester.
+                    'description' => 'Name, e-mail or id of the person asked about, as the user wrote it. Leave it out '
+                        . 'when the requester asks about themself; never a placeholder or a pronoun.',
                     'required' => false,
                 ],
                 'userid' => [
@@ -304,7 +309,7 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
             // chat path has no preflight, so the correction travels like every other recoverable read-only
             // lookup: an error row flagged RECOVERABLE_INPUT_ERROR whose observation offers the real names,
             // after which the loop re-plans and the honest end of the turn stays 'sufficient'.
-            $candidates = $this->suggest_capabilities($capability, array_keys($allcaps));
+            $candidates = $this->capability_candidates($capability, array_keys($allcaps));
             if (empty($candidates)) {
                 // Nothing resembles it, so there is nothing to retry with: finish with the role picture
                 // (a completed result the planner answers from) and say why the check did not run.
@@ -431,7 +436,7 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
     private function unknown_capability_result(string $capability, array $candidates): array {
         $message = 'Capability "' . $capability . '" is not defined on this site.';
         $observation = 'Capability check did NOT run: "' . $capability . '" is not a capability on this site.'
-            . ' Existing capabilities that resemble it: ' . implode(', ', $candidates) . '.'
+            . ' Existing capabilities that resemble it or belong to the same component: ' . implode(', ', $candidates) . '.'
             . ' Re-run this skill ONCE with input.capability set to exactly one of these names'
             . ' (same person, same course). If none of them means what the user asked, do not call it'
             . ' again — tell the user which permission could not be identified.';
@@ -445,6 +450,54 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
             'capability_candidates' => array_values($candidates),
             'observation_full' => $observation,
         ];
+    }
+
+    /**
+     * The capabilities offered for an unknown name, capped at MAX_CANDIDATES: every look-alike first (at most
+     * MAX_SUGGESTIONS, those inside the same component ahead of the others), then - only when at least one
+     * look-alike lies inside the component the planner chose - the rest of that component (alphabetical) in the
+     * remaining slots.
+     *
+     * Wave 32 (A3, DP-3 in 10 of 10 runs L30-L41): the planner turns "manage the course" into moodle/course:manage,
+     * which does not exist. The look-alike ranking only knows identifier tokens, so it offered managefiles,
+     * manageactivities, managegroups, ... but never moodle/course:update - the capability that actually means it -
+     * and in 7 of 10 runs the planner then asked the user instead of re-running the check (threads 9213 ... 12680).
+     * The component the planner chose (the identifier part before the colon) is structural context: when the
+     * ranking itself finds look-alikes inside it, its family holds the right name whatever word the planner used
+     * for the action, so the family is offered as well. moodle/course:update then sits at slot 43 of 50 (35th
+     * family name after the four in-family look-alikes).
+     * L43 re-check (DP-2 thread 13239): the planner guessed mod/booking:grades; no mod/booking capability resembles
+     * it, the right names live in OTHER components (mod/assign:grade, moodle/grade:*), and mod/booking has 98
+     * capabilities. There the chosen component is not grounded, so its family is not offered, and the look-alikes
+     * always keep their slots ahead of any family. Identifier structure only, no language.
+     *
+     * @param string $query
+     * @param string[] $allnames
+     * @return string[]
+     */
+    private function capability_candidates(string $query, array $allnames): array {
+        $lookalikes = $this->suggest_capabilities($query, $allnames);
+
+        $needle = \core_text::strtolower(trim($query));
+        $colon = strrpos($needle, ':');
+        $prefix = $colon === false ? '' : substr($needle, 0, $colon + 1);
+        if ($prefix === '' || $prefix === ':') {
+            return $lookalikes;
+        }
+        $infamily = static fn(string $name): bool => strpos(\core_text::strtolower($name), $prefix) === 0;
+        $familylookalikes = array_values(array_filter($lookalikes, $infamily));
+        if (empty($familylookalikes)) {
+            return $lookalikes;
+        }
+        $family = array_values(array_filter($allnames, $infamily));
+        sort($family);
+
+        $ordered = array_merge(
+            $familylookalikes,
+            array_values(array_filter($lookalikes, static fn(string $name): bool => !$infamily($name))),
+            $family
+        );
+        return array_slice(array_values(array_unique($ordered)), 0, self::MAX_CANDIDATES);
     }
 
     /**

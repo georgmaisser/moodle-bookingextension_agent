@@ -159,6 +159,77 @@ final class diagnose_permissions_skill_test extends advanced_testcase {
     }
 
     /**
+     * Wave 32 (A3, DP-3): an unknown name inside an existing component offers that component's whole family, so the
+     * capability that means the action is on the list even when its identifier shares no token with the guess.
+     *
+     * The planner's guess in all ten runs L30-L41 was moodle/course:manage; the look-alike ranking alone offered
+     * managefiles, manageactivities, managegroups, ... but not moodle/course:update.
+     */
+    public function test_unknown_capability_offers_its_component_family(): void {
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course();
+        $teacher = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($teacher->id, $course->id, 'editingteacher');
+        $coursecontextid = (int)context_course::instance($course->id)->id;
+        $this->setUser($teacher);
+        $skill = new diagnose_permissions_skill();
+
+        $result = $skill->execute(
+            ['courseid' => (int)$course->id, 'capability' => 'moodle/course:manage'],
+            $coursecontextid,
+            (int)$teacher->id
+        );
+
+        $this->assertSame('error', $result['status']);
+        $this->assertContains('RECOVERABLE_INPUT_ERROR', (array)($result['issue_codes'] ?? []));
+        $candidates = (array)($result['capability_candidates'] ?? []);
+        $this->assertContains('moodle/course:update', $candidates, 'the family member that means the action is offered');
+        $this->assertContains('moodle/course:manageactivities', $candidates, 'look-alikes stay on the list');
+        $this->assertLessThanOrEqual(50, count($candidates), 'the candidate list is capped');
+        $this->assertLessThan(
+            array_search('moodle/course:update', $candidates, true),
+            array_search('moodle/course:manageactivities', $candidates, true),
+            'look-alikes inside the component come first, the rest of the family follows'
+        );
+        foreach ($candidates as $candidate) {
+            $this->assertArrayHasKey($candidate, get_all_capabilities(), 'only real capabilities are offered');
+        }
+    }
+
+    /**
+     * Wave 32 (A3, L43 re-check, DP-2 thread 13239): a component the ranking finds no look-alike in is not grounded,
+     * so its family is not offered and the look-alikes from other components stay the whole list.
+     *
+     * The planner guessed mod/booking:grades (not defined; mod/booking has far more than 50 capabilities, none of
+     * them about grading). The names that mean the action live elsewhere (mod/assign:grade, ...). Ranking the whole
+     * mod/booking family in would have filled the list with unrelated names.
+     */
+    public function test_unknown_capability_in_an_ungrounded_component_offers_only_lookalikes(): void {
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course();
+        $teacher = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($teacher->id, $course->id, 'editingteacher');
+        $coursecontextid = (int)context_course::instance($course->id)->id;
+        $this->setUser($teacher);
+        $skill = new diagnose_permissions_skill();
+
+        $result = $skill->execute(
+            ['courseid' => (int)$course->id, 'capability' => 'mod/booking:grades'],
+            $coursecontextid,
+            (int)$teacher->id
+        );
+
+        $this->assertSame('error', $result['status']);
+        $this->assertContains('RECOVERABLE_INPUT_ERROR', (array)($result['issue_codes'] ?? []));
+        $candidates = (array)($result['capability_candidates'] ?? []);
+        $this->assertContains('mod/assign:grade', $candidates, 'the foreign look-alike is offered');
+        $this->assertLessThanOrEqual(8, count($candidates), 'only the look-alikes, no family');
+        foreach ($candidates as $candidate) {
+            $this->assertStringStartsNotWith('mod/booking:', $candidate, 'the ungrounded family is not offered');
+        }
+    }
+
+    /**
      * Unknown capability without any look-alike: nothing to retry with, so the skill completes with the
      * role picture (a finished result the planner can answer from) and no retry marker.
      */
