@@ -98,6 +98,71 @@ final class scaffold_course_content_skill_test extends advanced_testcase {
     }
 
     /**
+     * Wave 32 (SCC-2 L43, thread 13306): a chapter count that is not a number (the construction sent chapters=true)
+     * keeps the documented default instead of becoming a one-chapter course through an (int) cast.
+     */
+    public function test_a_non_numeric_chapter_count_keeps_the_default(): void {
+        $env = $this->setup_course();
+
+        $dto = (new scaffold_course_content_skill())->preflight(
+            ['topic' => 'Das Leben der Wikinger', 'chapters' => true],
+            $env['contextid'],
+            $env['userid']
+        );
+
+        $this->assertSame('pass', $dto->to_array()['status'], json_encode($dto->issues));
+        $this->assertSame(4, (int)$dto->preparedinput['chapters']);
+    }
+
+    /**
+     * Wave 32 (SCC-1 L39/L43, SCC-4 L33): the example shows the shape only. Its chapters 4, finalquiz true and
+     * quizquestions 5 were copied into constructions whose user gave none of them, which skipped the structure
+     * question and the question-count question (B4).
+     */
+    public function test_example_input_carries_no_structure_value(): void {
+        $example = (new scaffold_course_content_skill())->get_example_input();
+
+        foreach (['chapters', 'practicequizzes', 'finalquiz', 'quizquestions'] as $field) {
+            $this->assertArrayNotHasKey($field, $example, $field . ' must not be copyable from the example');
+        }
+        $this->assertArrayHasKey('topic', $example);
+    }
+
+    /**
+     * Wave 32: the constructor sees the first 160 characters of a field description. The quiz-count rule
+     * ("leave out, the system asks") and the course-target rule used to lie behind that cut.
+     */
+    public function test_target_and_count_fields_keep_their_rule_inside_the_cut(): void {
+        $properties = (new scaffold_course_content_skill())->get_schema()['properties'];
+
+        foreach (['quizquestions', 'coursequery', 'courseid'] as $field) {
+            $this->assertLessThanOrEqual(
+                160,
+                \core_text::strlen((string)$properties[$field]['description']),
+                $field . ' fits the constructor prompt cut'
+            );
+        }
+        $this->assertStringContainsString('leave out', (string)$properties['quizquestions']['description']);
+        $this->assertStringContainsString('coursequery', (string)$properties['courseid']['description']);
+    }
+
+    /**
+     * Wave 32 (SCC-4: create_course chosen for a named existing course in L35-L41 and L43): the card and the
+     * create_course card fence each other; the selector window says the course already exists.
+     */
+    public function test_card_fences_course_creation(): void {
+        $schema = (new scaffold_course_content_skill())->get_schema();
+        $this->assertStringContainsString('course.create_course', (string)$schema['not']);
+
+        $firstsentence = strtok((string)$schema['description'], '.');
+        $this->assertStringContainsString('EXISTING', (string)$firstsentence);
+        $this->assertLessThanOrEqual(240, \core_text::strlen((string)$firstsentence));
+
+        $create = (new \bookingextension_agent\local\wizard\course\skills\create_course_skill())->get_schema();
+        $this->assertStringContainsString('scaffold_course_content', (string)$create['not']);
+    }
+
+    /**
      * Moodle's auto-created announcements forum is an EXPECTED activity: a fresh course
      * containing only the news forum passes without any override (thread 586: the plain
      * count>0 check blocked the chain on every fresh course).

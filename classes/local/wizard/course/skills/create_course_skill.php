@@ -137,7 +137,9 @@ class create_course_skill extends core_skill_base implements
                 . 'course, e.g. "create a course about the Vikings". The system asks which course category to use unless the user '
                 . 'named one or only one is available. This creates an EMPTY course — content is added afterwards.',
             'is' => 'The course container.',
-            'not' => 'Booking options or activities inside an existing course (add_activity, mod_booking.create_option).',
+            // Wave 32 (SCC-4, mutual fence with course.scaffold_course_content; owner of this card: group A1).
+            'not' => 'Booking options or activities inside an existing course (add_activity, mod_booking.create_option); '
+                . 'content for an existing course (scaffold_course_content).',
             'readonly' => false,
             'example_utterances' => [
                 'Create a new course about the life of the Vikings',

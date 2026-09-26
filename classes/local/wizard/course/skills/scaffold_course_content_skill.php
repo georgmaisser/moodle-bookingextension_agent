@@ -131,18 +131,23 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
     public function get_schema(): array {
         return $this->enrich_schema_with_prompt_meta([
             'version' => 1,
-            'description' => 'Fill a course with AI-generated content in ONE step: a welcome section, N chapter pages and a '
-                . 'closing section, optionally practice quizzes per chapter and a graded final quiz. Use it once the '
-                . 'course exists (newly created or existing) and the user wants an interesting/ready-to-use course '
-                . 'about a topic. It creates all of this in a single call.',
-            'is' => 'A whole course filled in one call.',
-            'not' => 'Separate add_activity or add_quiz steps for the same content.',
+            // Wave 32 (SCC-4): the first sentence (selector window) says the course already exists, and the card fences
+            // course.create_course both ways - from L35 on the selector chose create_course for a named existing course
+            // in every run although this card was in the catalogue (create_course named no sibling for content).
+            'description' => 'Fill an EXISTING course (named, the current one or one just created) with AI-generated content '
+                . 'in ONE step: a welcome section, N chapter pages and a closing section, optionally practice quizzes per '
+                . 'chapter and a graded final quiz. Use it once the course exists (newly created or existing) and the '
+                . 'user wants an interesting/ready-to-use course about a topic. It creates all of this in a single call.',
+            'is' => 'The content of a course that already exists, created in one call.',
+            'not' => 'Creating the course container (course.create_course); separate add_activity or add_quiz steps for the '
+                . 'same content.',
             'readonly' => false,
             'example_utterances' => [
                 'Fill the Vikings course with interesting content',
                 'Generate 5 chapters with a final quiz about first aid in this course',
                 'Erstelle Inhalte für den Kurs, mit Übungsquiz pro Kapitel',
                 'Make me an interesting course about the life of the Vikings',
+                'Build out an existing course with a full set of chapters on a topic',
             ],
             'properties' => [
                 'topic' => [
@@ -172,21 +177,23 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
                 ],
                 'quizquestions' => [
                     'type' => 'integer',
-                    'description' => 'How many questions each quiz should have. There is NO default — set it to the '
-                        . 'number the user gave. If a quiz is wanted but the user did not say how many questions, '
-                        . 'leave this out so the system asks; never invent a number.',
+                    // Wave 32 (SCC-1): the old text passed the 160-character cut before "leave this out".
+                    'description' => 'Questions per quiz: the user\'s number. No default: else leave out and the system '
+                        . 'asks - never invent one.',
                     'required' => false,
                 ],
                 'coursequery' => [
                     'type' => 'string',
-                    'description' => 'Target a DIFFERENT course by name, ONLY when the user names one (e.g. the '
-                        . 'course just created in an earlier step — use its exact full name). Leave empty for the '
-                        . 'current course.',
+                    // Wave 32 (SCC-2/SCC-3): the old text was cut at 160 characters ("Leave empty for th").
+                    'description' => 'A DIFFERENT course, only when the user names one (their words) or one was just '
+                        . 'created (its full name); the system resolves it. Empty = the current course.',
                     'required' => false,
                 ],
                 'courseid' => [
                     'type' => 'integer',
-                    'description' => 'Numeric target course id when known. Leave empty for the current course.',
+                    // Wave 32: constructions copied the page's course id (11) although the user named another course.
+                    'description' => 'Numeric course id only when the user gave it or an earlier step returned it - never '
+                        . 'the current page\'s course. A named course goes into coursequery.',
                     'required' => false,
                 ],
                 'outputlang' => [
@@ -215,7 +222,9 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
      * @return array
      */
     public function get_example_input(): array {
-        return ['topic' => 'Das Leben der Wikinger', 'chapters' => 4, 'finalquiz' => true, 'quizquestions' => 5];
+        // Wave 32 (SCC-1/SCC-4): the shape only. chapters 4, finalquiz true and quizquestions 5 were copied into
+        // constructions whose user gave none of them (e51c839 removed the same count from add_quiz/generate_questions).
+        return ['topic' => 'Das Leben der Wikinger'];
     }
 
     /**
@@ -334,9 +343,14 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
             );
         }
 
+        // A chapter count is a number; anything else (SCC-2 L43 carried chapters=true, which (int) made 1) keeps the
+        // documented default instead of turning into a one-chapter course.
+        $chaptersinput = $input['chapters'] ?? null;
         $chapters = max(1, min(
             course_content_generation_service::MAX_CHAPTERS,
-            (int)($input['chapters'] ?? self::DEFAULT_CHAPTERS) ?: self::DEFAULT_CHAPTERS
+            (is_int($chaptersinput) || (is_string($chaptersinput) && ctype_digit(trim($chaptersinput))))
+                ? ((int)$chaptersinput ?: self::DEFAULT_CHAPTERS)
+                : self::DEFAULT_CHAPTERS
         ));
 
         // Expected-activities contract (blueprint F2): only activities BEYOND what the system
