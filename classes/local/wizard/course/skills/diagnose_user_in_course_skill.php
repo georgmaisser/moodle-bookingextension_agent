@@ -27,6 +27,7 @@ use bookingextension_agent\local\wizard\diagnostics\diagnostic_result_builder;
 use bookingextension_agent\local\wizard\dto\skill_risk_class;
 use bookingextension_agent\local\wizard\interfaces\skill_trigger_provider_interface;
 use bookingextension_agent\local\wizard\services\course\course_context_loader;
+use bookingextension_agent\local\wizard\services\target_query_normalizer;
 use context_course;
 
 /**
@@ -129,8 +130,9 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
                 ],
                 'userquery' => [
                     'type' => 'string',
-                    'description' => 'Name, e-mail or id of the person. "me" = current user. Leave empty to diagnose '
-                        . 'yourself. If the name is ambiguous, provide a more specific name or the e-mail address.',
+                    // Wave 32: since F81 (e08b63b) "me" is no self-reference; an empty field is the requester.
+                    'description' => 'Name, e-mail or id of the person, as the user wrote it. Leave it empty when the user '
+                        . 'asks about themselves. The system resolves it and asks when several match.',
                     'required' => false,
                 ],
                 'userid' => [
@@ -299,6 +301,33 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
                 'missing_course'
             );
         }
+        // Wave 32 (DUC-4, L30-L41 + L42sol): with no course named, the ambient course is only a guess. "Bei der
+        // Krausler fehlt die Note für die Zertifikatsprüfung" was diagnosed in 10 of 11 threads in the booking
+        // activity's course (id 11), where no such grade item exists - a wrong answer counted as clean. When the
+        // named item or activity is not in the ambient course, the person's own courses decide.
+        // L43 (thread 13315, constructor 83865/83869): the model copied the ambient course id from the runtime
+        // context into courseid ({"courseid":11}) although the user named no course - an id equal to the ambient
+        // course is the default, not a named course, and must not switch the relocation off.
+        $explicitcourseid = (int)($input['courseid'] ?? 0);
+        $namedacourse = trim((string)($input['coursequery'] ?? '')) !== ''
+            || ($explicitcourseid > 0 && $explicitcourseid !== $this->ambient_course_id($contextid));
+        if (!$namedacourse && $targetuserid > 0) {
+            $relocation = $this->relocate_to_course_with_named_target($courseid, $aspect, $input, $targetuserid, $userid);
+            if (isset($relocation['courseid'])) {
+                $courseid = (int)$relocation['courseid'];
+            } else if (isset($relocation['candidates'])) {
+                $overviewuser = \core_user::get_user($targetuserid, '*', IGNORE_MISSING);
+                if ($overviewuser && empty($overviewuser->deleted)) {
+                    return $this->missing_course_clarification_result(
+                        $overviewuser,
+                        $aspect,
+                        $userid,
+                        (array)$relocation['candidates']
+                    );
+                }
+            }
+        }
+
         try {
             $course = get_course($courseid);
         } catch (\Throwable $e) {
@@ -504,11 +533,17 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
      * @param \stdClass $targetuser
      * @param string $aspect
      * @param int $actinguserid Acting user, so the course list is scoped to courses they may access.
+     * @param array[]|null $onlycourses Course payloads to offer instead of all of the person's courses.
      * @return array
      */
-    private function missing_course_clarification_result(\stdClass $targetuser, string $aspect, int $actinguserid): array {
+    private function missing_course_clarification_result(
+        \stdClass $targetuser,
+        string $aspect,
+        int $actinguserid,
+        ?array $onlycourses = null
+    ): array {
         $targetuserid = (int)$targetuser->id;
-        $courses = $this->build_user_courses_payload($targetuserid, $actinguserid);
+        $courses = $onlycourses ?? $this->build_user_courses_payload($targetuserid, $actinguserid);
         $subject = fullname($targetuser);
 
         if (empty($courses)) {
@@ -543,6 +578,112 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
             // never took effect before L43 - execution_feedback_service dropped it).
             'observation_full' => implode("\n", $lines),
         ];
+    }
+
+    /**
+     * Where the named item or activity of an unnamed course lives (wave 32, DUC-4).
+     *
+     * Only called when the user named no course. The ambient course keeps the diagnosis when it holds the named
+     * target (or when nothing is named). Otherwise the person's own courses - scoped to what the acting user may
+     * access - are searched: exactly one holding the target becomes the course; several are returned as
+     * candidates for the caller's question; none leaves the ambient course (the diagnoser then says so).
+     * Names are compared by {@see target_query_normalizer::name_key()}: shape only, no word is read.
+     *
+     * @param int $ambientcourseid
+     * @param string $aspect
+     * @param array $input
+     * @param int $targetuserid
+     * @param int $actinguserid
+     * @return array{courseid?:int,candidates?:array[]}
+     */
+    private function relocate_to_course_with_named_target(
+        int $ambientcourseid,
+        string $aspect,
+        array $input,
+        int $targetuserid,
+        int $actinguserid
+    ): array {
+        // A grade item is named by itemquery; the constructor sometimes puts it into activityquery (L37 thread
+        // 11133), and an activity's grade item carries the activity's name, so either field names the target.
+        $itemquery = trim((string)($input['itemquery'] ?? ''));
+        $activityquery = trim((string)($input['activityquery'] ?? ''));
+        $query = $aspect === 'grades'
+            ? ($itemquery !== '' ? $itemquery : $activityquery)
+            : (in_array($aspect, ['access', 'progress'], true) ? $activityquery : '');
+        if ($query === '' || (int)($input['activityid'] ?? 0) > 0) {
+            return [];
+        }
+        if ($ambientcourseid > 0 && $this->course_holds_named_target($ambientcourseid, $aspect, $query)) {
+            return [];
+        }
+
+        $hits = [];
+        foreach ($this->build_user_courses_payload($targetuserid, $actinguserid) as $candidate) {
+            $candidateid = (int)($candidate['courseid'] ?? 0);
+            if ($candidateid > 0 && $candidateid !== $ambientcourseid
+                    && $this->course_holds_named_target($candidateid, $aspect, $query)) {
+                $hits[] = $candidate;
+            }
+        }
+        if (count($hits) === 1) {
+            return ['courseid' => (int)$hits[0]['courseid']];
+        }
+        return count($hits) > 1 ? ['candidates' => $hits] : [];
+    }
+
+    /**
+     * The id of the course the ambient context lies in (0 when it lies in none, e.g. the system context).
+     *
+     * @param int $contextid
+     * @return int
+     */
+    private function ambient_course_id(int $contextid): int {
+        try {
+            $context = \context::instance_by_id($contextid, IGNORE_MISSING);
+            $coursecontext = $context ? $context->get_course_context(false) : false;
+        } catch (\Throwable $e) {
+            return 0;
+        }
+        return $coursecontext ? (int)$coursecontext->instanceid : 0;
+    }
+
+    /**
+     * Whether a course holds a grade item (grades) or an activity (access/progress) carrying the queried name.
+     *
+     * @param int $courseid
+     * @param string $aspect
+     * @param string $query
+     * @return bool
+     */
+    private function course_holds_named_target(int $courseid, string $aspect, string $query): bool {
+        global $CFG;
+
+        $needle = target_query_normalizer::name_key($query);
+        if ($needle === '') {
+            return false;
+        }
+        $names = [];
+        try {
+            if ($aspect === 'grades') {
+                require_once($CFG->libdir . '/gradelib.php');
+                foreach (\grade_item::fetch_all(['courseid' => $courseid]) ?: [] as $item) {
+                    $names[] = (string)$item->get_name();
+                }
+            } else {
+                foreach (get_fast_modinfo($courseid)->get_cms() as $cm) {
+                    $names[] = (string)$cm->name;
+                }
+            }
+        } catch (\Throwable $e) {
+            return false;
+        }
+        foreach ($names as $name) {
+            $key = target_query_normalizer::name_key($name);
+            if ($key !== '' && str_contains($key, $needle)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

@@ -373,4 +373,145 @@ final class diagnose_user_in_course_skill_test extends advanced_testcase {
         $this->assertStringContainsString('Progress diagnosis', (string)$res2['observation_full']);
         $this->assertStringContainsString('Final Quiz', (string)$res2['observation_full']);
     }
+
+    /**
+     * Wave 32 (DUC-4, L30-L41): with no course named, a grade item that is not in the ambient course is looked
+     * for in the person's own courses - the ambient course had been diagnosed and "no matching grade item"
+     * reported, a wrong answer that counted as clean.
+     */
+    public function test_an_unnamed_course_follows_the_named_grade_item_into_the_persons_course(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        [$ambient, , $student] = $this->build_course();
+        $gen = $this->getDataGenerator();
+        $home = $gen->create_course(['fullname' => 'Course holding the item']);
+        $gen->enrol_user($student->id, $home->id, 'student');
+        $gen->create_module('quiz', ['course' => $home->id, 'name' => 'Certification exam']);
+
+        $res = (new diagnose_user_in_course_skill())->execute(
+            ['aspect' => 'grades', 'userid' => (int)$student->id, 'itemquery' => 'Certification-Exam'],
+            (int)context_course::instance($ambient->id)->id,
+            (int)get_admin()->id
+        );
+
+        $this->assertSame('executed', $res['status']);
+        $this->assertSame((int)$home->id, (int)$res['diagnosis']['courseid']);
+    }
+
+    /**
+     * L43 (thread 13315): the constructor copied the ambient course id into courseid although no course was
+     * named. An id equal to the ambient course is the default and still follows the named item.
+     */
+    public function test_the_ambient_course_id_given_explicitly_still_follows_the_named_item(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        [$ambient, , $student] = $this->build_course();
+        $gen = $this->getDataGenerator();
+        $home = $gen->create_course(['fullname' => 'Course holding the item']);
+        $gen->enrol_user($student->id, $home->id, 'student');
+        $gen->create_module('quiz', ['course' => $home->id, 'name' => 'Certification exam']);
+
+        $res = (new diagnose_user_in_course_skill())->execute(
+            [
+                'aspect' => 'grades',
+                'userid' => (int)$student->id,
+                'courseid' => (int)$ambient->id,
+                'itemquery' => 'Certification exam',
+            ],
+            (int)context_course::instance($ambient->id)->id,
+            (int)get_admin()->id
+        );
+
+        $this->assertSame('executed', $res['status']);
+        $this->assertSame((int)$home->id, (int)$res['diagnosis']['courseid']);
+    }
+
+    /**
+     * A course id other than the ambient one is a named course: it is diagnosed as given, never relocated.
+     */
+    public function test_a_named_other_course_id_is_never_relocated(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        [$ambient, , $student] = $this->build_course();
+        $gen = $this->getDataGenerator();
+        $named = $gen->create_course(['fullname' => 'Named course']);
+        $home = $gen->create_course(['fullname' => 'Course holding the item']);
+        foreach ([$named, $home] as $course) {
+            $gen->enrol_user($student->id, $course->id, 'student');
+        }
+        $gen->create_module('quiz', ['course' => $home->id, 'name' => 'Certification exam']);
+
+        $res = (new diagnose_user_in_course_skill())->execute(
+            [
+                'aspect' => 'grades',
+                'userid' => (int)$student->id,
+                'courseid' => (int)$named->id,
+                'itemquery' => 'Certification exam',
+            ],
+            (int)context_course::instance($ambient->id)->id,
+            (int)get_admin()->id
+        );
+
+        $this->assertSame((int)$named->id, (int)$res['diagnosis']['courseid']);
+    }
+
+    /**
+     * The ambient course keeps the diagnosis when it holds the named item itself.
+     */
+    public function test_the_ambient_course_keeps_a_named_item_it_holds(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        [$ambient, , $student] = $this->build_course();
+        $gen = $this->getDataGenerator();
+        $elsewhere = $gen->create_course();
+        $gen->enrol_user($student->id, $elsewhere->id, 'student');
+        $gen->create_module('quiz', ['course' => $elsewhere->id, 'name' => 'Quiz A']);
+
+        $res = (new diagnose_user_in_course_skill())->execute(
+            ['aspect' => 'grades', 'userid' => (int)$student->id, 'itemquery' => 'Quiz A'],
+            (int)context_course::instance($ambient->id)->id,
+            (int)get_admin()->id
+        );
+
+        $this->assertSame((int)$ambient->id, (int)$res['diagnosis']['courseid']);
+    }
+
+    /**
+     * Two of the person's courses holding the item: the caller gets exactly those two to choose from.
+     */
+    public function test_two_courses_holding_the_item_are_offered_not_guessed(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        [$ambient, , $student] = $this->build_course();
+        $gen = $this->getDataGenerator();
+        $first = $gen->create_course(['fullname' => 'First holder']);
+        $second = $gen->create_course(['fullname' => 'Second holder']);
+        $unrelated = $gen->create_course(['fullname' => 'Unrelated course']);
+        foreach ([$first, $second, $unrelated] as $course) {
+            $gen->enrol_user($student->id, $course->id, 'student');
+        }
+        $gen->create_module('quiz', ['course' => $first->id, 'name' => 'Certification exam']);
+        $gen->create_module('quiz', ['course' => $second->id, 'name' => 'Certification exam']);
+
+        $res = (new diagnose_user_in_course_skill())->execute(
+            ['aspect' => 'grades', 'userid' => (int)$student->id, 'itemquery' => 'Certification exam'],
+            (int)context_course::instance($ambient->id)->id,
+            (int)get_admin()->id
+        );
+
+        $this->assertArrayHasKey('course_clarification', $res);
+        $offered = array_column((array)$res['course_clarification']['courses'], 'courseid');
+        sort($offered);
+        $this->assertSame([(int)$first->id, (int)$second->id], array_map('intval', $offered));
+    }
+
+    /**
+     * Wave 32 review: the person field no longer names "me" (F81) and fits the constructor's field window.
+     */
+    public function test_the_userquery_description_has_no_self_word_and_fits_the_window(): void {
+        $schema = (new diagnose_user_in_course_skill())->get_schema();
+        $description = (string)$schema['properties']['userquery']['description'];
+        $this->assertStringNotContainsString('"me"', $description);
+        $this->assertLessThanOrEqual(159, \core_text::strlen($description));
+    }
 }
