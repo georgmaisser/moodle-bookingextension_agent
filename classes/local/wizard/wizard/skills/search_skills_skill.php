@@ -160,7 +160,8 @@ class search_skills_skill extends core_skill_base implements skill_trigger_provi
         $errors = [];
         $query = trim((string)($input['query'] ?? ''));
         if ($query === '') {
-            $errors[] = 'Search query must not be empty.';
+            // Wave 32 (A3): user-facing text via get_string (was a hard-coded English literal).
+            $errors[] = get_string('agent_search_skills_query_required', 'bookingextension_agent');
         }
 
         return [
