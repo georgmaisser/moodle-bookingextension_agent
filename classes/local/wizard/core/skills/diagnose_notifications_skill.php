@@ -104,8 +104,10 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
             'properties' => [
                 'userquery' => [
                     'type' => 'string',
-                    'description' => 'Name, e-mail or id of the person. "me" or empty = the current user. '
-                        . 'If the name is ambiguous, provide a more specific name or the e-mail address.',
+                    // Wave 32 (A3): the old text 'Name ... "me" or empty = the current user' contradicted F81
+                    // (e08b63b): resolve_userid no longer knows the word "me", only an EMPTY field means the requester.
+                    'description' => 'Name, e-mail or id of the person asked about, as the user wrote it. Leave it out '
+                        . 'when the requester asks about themself; never a placeholder or a pronoun.',
                     'required' => false,
                 ],
                 'userid' => [
