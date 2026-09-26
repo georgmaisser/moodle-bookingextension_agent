@@ -250,21 +250,22 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
             'description' => 'Put questions into the course question bank: generated from an uploaded document, course PDFs '
                 . '(usecoursepdfs/resourcecmid) or a topic, or a dictated question and answer. Question types: multiple choice, '
                 . 'true/false, short answer; an upload is optional — facts or an explicit question and answer in the chat are '
-                . 'enough. Use this whenever the user wants a question, quiz or test created or inserted into Moodle (e.g. "make '
-                . 'me a question", "create questions from the document", "create a quiz from the PDFs in the course").',
+                . 'enough. It creates questions only, no activity (e.g. "make me a question", "put questions from the document '
+                . 'into the question bank").',
             'is' => 'Questions in the question bank.',
             // Wave 30 (UQ-4): "add questions from the PDF to the quiz" belongs to update_quiz since it reads course PDFs.
             'not' => 'Creating the quiz activity itself (course.add_quiz); questions for an existing quiz '
                 . '(course.update_quiz); other activities or resources (course.add_activity).',
             'readonly' => false,
             'example_utterances' => [
-                'create quiz questions from this PDF',
+                // Wave 32 review: no anchor repeats the shape of a test prompt (GQ-1 "turn it into ... bank questions").
+                'generate questions from this PDF and store them in the question bank',
                 'make me a multiple choice question about photosynthesis',
-                'generate 10 test questions from the document',
-                'create a quiz from the PDFs in the course',
+                'generate 10 questions from the document',
+                'use the PDF files of this course as the source for new questions',
                 'make questions from the handout file in course Biology 101',
                 'add some questions to the question bank',
-                'turn this material into a quiz',
+                'write practice questions on this material into the question bank',
             ],
             'properties' => [
                 'content' => [
@@ -276,8 +277,9 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                 ],
                 'count' => [
                     'type' => 'integer',
+                    // Wave 32 (GQ-4): a dictated question is a number too - as many as were dictated.
                     'description' => 'How many questions (max ' . question_generation_service::MAX_COUNT
-                        . '). No default: the user\'s number, else leave out and the system asks.',
+                        . '): the user\'s number, or as many as they dictated. No default: else leave out and the system asks.',
                     'required' => false,
                 ],
                 'qtypes' => [
@@ -317,8 +319,9 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                 ],
                 'courseid' => [
                     'type' => 'integer',
-                    'description' => 'Numeric id of the target course, when already known. Leave empty for the current '
-                        . 'course; never guess an id.',
+                    // Wave 32: constructions copied the page's course id (11) although the user named another course.
+                    'description' => 'Numeric course id only when the user gave it or an earlier step returned it - never '
+                        . 'the current page\'s course. A named course goes into coursequery.',
                     'required' => false,
                 ],
                 'resourcecmid' => [
@@ -364,8 +367,8 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
         return [
             [
                 'id' => 'question.generate_questions_request',
-                'description' => 'The user wants quiz questions generated from an uploaded document, from the PDF files of a'
-                    . ' course, or from text they provide, and put into the question bank.',
+                'description' => 'The user wants questions generated from an uploaded document, the PDF files of a course or'
+                    . ' text they give, and put into the question bank - no new activity.',
             ],
         ];
     }
@@ -383,27 +386,29 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
             [
                 'id' => 'question.generate_questions',
                 'triggers' => [
-                    'make a question', 'create a question', 'generate questions', 'create a quiz', 'create a test',
+                    'make a question', 'create a question', 'generate questions',
                     'questions from pdf', 'questions from document', 'insert question in moodle',
-                    'make me a question', 'create a question', 'generate question',
-                    'create quiz', 'create test', 'questions from the document', 'insert question into moodle',
-                    'quiz from the pdfs in the course', 'questions from the files in the course',
-                    'quiz about the pdfs in course',
+                    'make me a question', 'generate question',
+                    'questions from the document', 'insert question into moodle',
+                    'questions from the files in the course',
                 ],
                 'guidance' => [
-                    '- question.generate_questions creates Moodle quiz questions and saves them into the course question'
+                    '- question.generate_questions creates Moodle questions and saves them into the course question'
                         . ' bank itself, so do NOT look for a separate skill to "insert" a question.',
                     '- A document/PDF upload is OPTIONAL. If the user states the topic, facts, or an explicit question'
                         . ' and correct answer in the chat, pass that text verbatim as input.content and proceed; do'
                         . ' NOT ask the user to upload a document.',
-                    '- When the user wants the questions based on PDFs/files that are already IN the course (e.g. "a'
-                        . ' quiz about the PDFs in this course"), set input.usecoursepdfs=true (or input.resourcecmid'
+                    // Wave 32 (AQ-1): no guidance line speaks of a quiz - this skill creates bank questions only.
+                    '- When the user wants the questions based on PDFs/files that are already IN the course (e.g.'
+                        . ' "questions about the PDFs in this course"), set input.usecoursepdfs=true (or input.resourcecmid'
                         . ' for one specific file whose cmid is known). The system reads and extracts those course'
                         . ' files itself — do NOT ask the user to upload them and do NOT paste file text into'
                         . ' input.content.',
                     '- Only ask the user for a source if NEITHER a document was uploaded NOR course PDFs were requested'
                         . ' NOR any content was provided.',
-                    '- Set input.count to the number of questions the user asked for; if they did not say how many,'
+                    '- Set input.count to the number of questions the user asked for; a question the user dictated'
+                        . ' (question and answer given) counts as asked for, so input.count is the number of dictated'
+                        . ' questions. If they neither gave a number nor dictated a question,'
                         . ' leave input.count out so the system asks (no silent default). Set input.qtypes when named'
                         . ' (allowed types: multichoice, truefalse, shortanswer).',
                     '- Do NOT ask the user which question bank or category to use, and never invent a category id. Leave'

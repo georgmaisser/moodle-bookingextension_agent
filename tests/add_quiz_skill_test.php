@@ -69,6 +69,34 @@ final class add_quiz_skill_test extends advanced_testcase {
     }
 
     /**
+     * George 2026-09-26 (wave 32, AQ-2 and asset AQ-3: constructions invented "Test Shell" and other names): the
+     * name is a declared required value, so the construction reminder names it and the constructor asks (frozen
+     * rule 2). Should a command still arrive without a name - or with blanks only - the preflight asks as well: a
+     * question, never an error. The structure gate does not reject a nameless empty quiz on its own.
+     */
+    public function test_missing_name_is_asked_for_by_contract_and_preflight(): void {
+        $this->resetAfterTest();
+        [$course, $teacher, $ctxid] = $this->teacher_course();
+        $skill = new add_quiz_skill();
+
+        $method = new \ReflectionMethod($skill, 'prompt_contract_payload');
+        $method->setAccessible(true);
+        $contract = (array)$method->invoke($skill);
+        $this->assertSame(['name'], (array)$contract['required_input']);
+        $this->assertTrue($skill->check_structure([])['valid']);
+
+        foreach ([[], ['name' => '   ']] as $input) {
+            $result = $skill->preflight(['courseid' => (int)$course->id] + $input, $ctxid, (int)$teacher->id);
+            $this->assertSame('hard_block', $result->status);
+            $this->assertSame(['ADD_QUIZ_NAME_REQUIRED'], array_values($result->issuecodes));
+            $this->assertSame(
+                ['needs_clarification'],
+                array_values(array_unique(array_column($result->issues, 'severity')))
+            );
+        }
+    }
+
+    /**
      * Wanting questions without naming a source triggers the source clarification.
      */
     public function test_question_source_clarification(): void {

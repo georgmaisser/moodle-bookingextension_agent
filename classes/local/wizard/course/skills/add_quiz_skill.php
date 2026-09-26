@@ -133,14 +133,20 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
                 'create a quiz for this course',
                 'add a new test with 10 questions',
                 'make a quiz from this PDF',
+                // George 2026-09-26 (w32 A2 §5.1): neutral wording instead of "build a test from the uploaded
+                // document", which stood too close to the AQ-1 test prompt (overfitting).
+                'create a quiz activity whose questions come from an attached file',
                 'set up an empty quiz I can fill later',
                 'build a quiz from the photosynthesis topic',
             ],
             'properties' => [
+                // George 2026-09-26 (w32 A2): the name was "Required." in words only; the reminder said "ask for
+                // nothing" and the construction invented names (AQ-2 "Test Shell", asset AQ-3). Declared required,
+                // the constructor asks when the user gave none (frozen rule 2) and never invents one (rule 1).
                 'name' => [
                     'type' => 'string',
-                    'description' => 'The quiz name/title. Required.',
-                    'required' => false,
+                    'description' => 'The quiz name/title, in the user\'s words.',
+                    'required' => true,
                 ],
                 'intro' => [
                     'type' => 'string',
@@ -220,7 +226,9 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
                 ],
                 'courseid' => [
                     'type' => 'integer',
-                    'description' => 'Numeric target course id when known. Leave empty for the current course.',
+                    // Wave 32: constructions copied the page's course id (11) although the user named another course.
+                    'description' => 'Numeric course id only when the user gave it or an earlier step returned it - never '
+                        . 'the current page\'s course. A named course goes into coursequery.',
                     'required' => false,
                 ],
             ],
@@ -254,8 +262,8 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
         return [
             [
                 'id' => 'course.add_quiz_request',
-                'description' => 'The user wants a new quiz or test activity created in a course, empty or with generated,'
-                    . ' existing or random questions.',
+                'description' => 'The user wants a new quiz or test activity in a course: empty, or with questions generated'
+                    . ' from an uploaded document, the course PDFs or a topic, or existing or random ones.',
             ],
         ];
     }

@@ -59,6 +59,30 @@ final class quiz_question_count_clarification_test extends advanced_testcase {
     }
 
     /**
+     * Wave 32 (GQ-4): a dictated question and answer is a number too. The count field (the constructor sees its
+     * first 160 characters) and the construction guidance say so; the B4 gate itself stays unchanged — a request
+     * that neither names a number nor dictates a question still asks.
+     */
+    public function test_generate_questions_count_covers_dictated_questions(): void {
+        $skill = new generate_questions_skill();
+        $description = (string)$skill->get_schema()['properties']['count']['description'];
+        $this->assertStringContainsString('dictated', $description);
+        $this->assertLessThanOrEqual(160, \core_text::strlen($description), 'fits the constructor prompt cut');
+
+        $guidance = [];
+        foreach ($skill->get_contextual_prompt_packs() as $pack) {
+            $guidance = array_merge($guidance, (array)($pack['guidance'] ?? []));
+        }
+        $countlines = array_filter($guidance, static fn(string $line): bool => str_contains($line, 'input.count'));
+        $this->assertNotEmpty($countlines);
+        $this->assertStringContainsString('dictated', implode(' ', $countlines));
+
+        // The gate is untouched: no count at all still routes as a clarification.
+        $result = $skill->check_structure(['content' => 'Q: capital of France? A: Paris']);
+        $this->assertFalse($result['valid']);
+    }
+
+    /**
      * add_quiz generating from content without a count must clarify.
      */
     public function test_add_quiz_generation_without_count_clarifies(): void {
