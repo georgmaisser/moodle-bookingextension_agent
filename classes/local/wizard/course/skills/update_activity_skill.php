@@ -28,6 +28,7 @@ use bookingextension_agent\local\wizard\services\activities\module_catalog_servi
 use bookingextension_agent\local\wizard\services\activities\module_form_contract;
 use bookingextension_agent\local\wizard\services\activities\section_resolver_service;
 use bookingextension_agent\local\wizard\services\activity_preview_builder;
+use bookingextension_agent\local\wizard\services\target_query_normalizer;
 use context;
 use context_course;
 
@@ -53,6 +54,18 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
 
     /** How many update attempts before giving up (guards transient DB errors). */
     private const MAX_RETRIES = 2;
+
+    /** Token search: tokens shorter than this match too much to be searched on their own. */
+    private const MIN_TOKEN_CHARS = 3;
+
+    /** Token search: at most this many query tokens are searched. */
+    private const MAX_QUERY_TOKENS = 8;
+
+    /** Name match: every token of the activity name stands in the user's words. */
+    public const MATCH_NAME_TOKENS = 1;
+
+    /** Name match: the whole query, compared by shape, is part of the activity name. */
+    public const MATCH_WHOLE_QUERY = 2;
 
     /**
      * Constructor. Mutating skill (edits a course module) — broad write, requires confirmation.
@@ -137,9 +150,12 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
             'properties' => [
                 'activityquery' => [
                     'type' => 'string',
-                    'description' => 'Which activity to edit, by its current name (e.g. "Welcome page"). The system '
-                        . 'resolves it; if several match it asks. Omit only when editing the activity of the current '
-                        . 'page or when cmid is given.',
+                    // Wave 32 (UA-3, L41 thread 12704, call 80224): the constructor sees 160 characters of this
+                    // text. The old one was cut after "Omit only when editing the activity of the", and inside a
+                    // booking activity the constructor asked for "the parameter field of the booking activity"
+                    // instead of passing the user's words for the link. Both halves now fit the window.
+                    'description' => 'The activity as the user names or describes it, in their words; other courses are '
+                        . 'searched too. Leave it empty only for the activity whose page the user is on.',
                     'required' => false,
                 ],
                 'cmid' => [
@@ -703,6 +719,20 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
                     $matches[] = $cm;
                 }
             }
+            if (empty($matches)) {
+                // Wave 32: the same comparison by shape (hyphens, spaces, case) - see self::name_match_strength().
+                // Only the full-query strength here: a short name that merely stands inside the user's words must
+                // not win in the ambient course before the other courses were searched.
+                $matches = self::strongest_matches(
+                    array_values(array_filter(
+                        $modinfo->get_cms(),
+                        static fn($cm): bool => $catalog->is_whitelisted($cm->modname)
+                    )),
+                    $query,
+                    static fn($cm): string => (string)$cm->name,
+                    self::MATCH_WHOLE_QUERY
+                );
+            }
             if (count($matches) === 1) {
                 return $matches[0];
             }
@@ -719,6 +749,9 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
                 $query,
                 $userid
             );
+            if (empty($elsewhere)) {
+                $elsewhere = $this->find_activities_site_wide_by_tokens($query, $userid);
+            }
             if (count($elsewhere) === 1) {
                 try {
                     return get_fast_modinfo((int)$elsewhere[0]['courseid'], $userid)
@@ -760,6 +793,105 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
             'Which activity should I edit? Name it (e.g. "the Welcome page").',
             'UPDATE_ACTIVITY_TARGET_REQUIRED'
         );
+    }
+
+    /**
+     * Site-wide candidates for a query the plain LIKE search missed (wave 32, UA-2 and UA-4).
+     *
+     * UA-2 (ten runs): "Vorstellungs-Forum" never reached the forum "Vorstellungsforum" - the LIKE compares the
+     * raw string. UA-4 (L31, L38, L41): "die Seite mit den Übungsdaten" never reached the page "Übungsdaten" -
+     * the user's words wrap the name. Every token of the query is searched on its own, and only candidates whose
+     * name matches the whole query by {@see self::name_match_strength()} survive. No word is known here.
+     *
+     * @param string $query
+     * @param int $userid
+     * @return array[] {cmid, name, courseid, coursename, modname}
+     */
+    private function find_activities_site_wide_by_tokens(string $query, int $userid): array {
+        $candidates = [];
+        foreach (array_slice(self::name_tokens($query), 0, self::MAX_QUERY_TOKENS) as $token) {
+            if (\core_text::strlen($token) < self::MIN_TOKEN_CHARS) {
+                continue;
+            }
+            foreach ($this->find_activities_site_wide(module_catalog_service::WHITELIST, $token, $userid) as $found) {
+                $candidates[(int)$found['cmid']] = $found;
+            }
+        }
+
+        return self::strongest_matches(
+            array_values($candidates),
+            $query,
+            static fn(array $candidate): string => (string)$candidate['name']
+        );
+    }
+
+    /**
+     * The candidates with the strongest name match, or none.
+     *
+     * @param array $candidates
+     * @param string $query
+     * @param callable $nameof fn($candidate): string
+     * @param int $minstrength Weakest strength accepted (MATCH_NAME_TOKENS or MATCH_WHOLE_QUERY).
+     * @return array
+     */
+    public static function strongest_matches(
+        array $candidates,
+        string $query,
+        callable $nameof,
+        int $minstrength = self::MATCH_NAME_TOKENS
+    ): array {
+        $bystrength = [];
+        foreach ($candidates as $candidate) {
+            $strength = self::name_match_strength((string)$nameof($candidate), $query);
+            if ($strength >= $minstrength && $strength > 0) {
+                $bystrength[$strength][] = $candidate;
+            }
+        }
+        if (empty($bystrength)) {
+            return [];
+        }
+        krsort($bystrength);
+        return reset($bystrength);
+    }
+
+    /**
+     * How an activity name matches the user's words: 2, 1 or 0.
+     *
+     * 2 = the query, compared by shape (letters and digits only, lower case), is part of the name:
+     *     "Vorstellungs-Forum" and "Vorstellungsforum" (target_query_normalizer::name_key).
+     * 1 = every token of the name stands in the query: "die Seite mit den Übungsdaten" carries "Übungsdaten".
+     * Strength 2 always wins over 1, so a short name inside the query ("Forum") never competes with a name
+     * that holds the whole query.
+     *
+     * @param string $name
+     * @param string $query
+     * @return int
+     */
+    public static function name_match_strength(string $name, string $query): int {
+        $namekey = target_query_normalizer::name_key($name);
+        $querykey = target_query_normalizer::name_key($query);
+        if ($namekey === '' || $querykey === '') {
+            return 0;
+        }
+        if (str_contains($namekey, $querykey)) {
+            return self::MATCH_WHOLE_QUERY;
+        }
+        $nametokens = self::name_tokens($name);
+        if ($nametokens !== [] && array_diff($nametokens, self::name_tokens($query)) === []) {
+            return self::MATCH_NAME_TOKENS;
+        }
+        return 0;
+    }
+
+    /**
+     * Lower-case runs of letters and digits of any script.
+     *
+     * @param string $text
+     * @return string[]
+     */
+    private static function name_tokens(string $text): array {
+        $parts = preg_split('/[^\p{L}\p{N}]+/u', \core_text::strtolower($text), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        return array_values(array_unique($parts));
     }
 
     /**

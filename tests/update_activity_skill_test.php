@@ -292,4 +292,105 @@ final class update_activity_skill_test extends advanced_testcase {
         $this->assertSame('hard_block', $result->status);
         $this->assertContains('NO_NATIVE_CAPABILITY', $result->issuecodes);
     }
+
+    /**
+     * Wave 32 (UA-2, ten of ten runs): the user's spelling differs from the name only in shape.
+     *
+     * The run-23 test above names the forum exactly; the baseline prompt writes "Vorstellungs-Forum" and the
+     * LIKE search never met "Vorstellungsforum". Hyphens, spaces and case are not part of a name.
+     */
+    public function test_a_name_spelled_with_a_hyphen_is_found_in_another_course(): void {
+        $this->resetAfterTest();
+        [$course, $teacher, $page, $ctxid] = $this->setup_page();
+        unset($course, $page);
+
+        $other = $this->getDataGenerator()->create_course();
+        $this->getDataGenerator()->enrol_user($teacher->id, $other->id, 'editingteacher');
+        $forum = $this->getDataGenerator()->create_module('forum', ['course' => $other->id, 'name' => 'Vorstellungsforum']);
+
+        $pf = (new update_activity_skill())->preflight(
+            ['activityquery' => 'Vorstellungs-Forum', 'visible' => false],
+            $ctxid,
+            (int)$teacher->id
+        );
+        $this->assertSame('pass', $pf->status);
+        $this->assertSame((int)$forum->cmid, (int)$pf->preparedinput['cmid']);
+    }
+
+    /**
+     * Wave 32 (UA-4, L31/L38/L41): the user's words wrap the activity name.
+     *
+     * "die Seite mit den Übungsdaten" names the page "Übungsdaten" - every token of the name stands in the
+     * query. The test uses its own words on purpose; no word of the query is known to the resolver.
+     */
+    public function test_a_name_wrapped_in_the_users_words_is_found(): void {
+        $this->resetAfterTest();
+        [$course, $teacher, $page, $ctxid] = $this->setup_page();
+        unset($course, $page);
+
+        $other = $this->getDataGenerator()->create_course();
+        $this->getDataGenerator()->enrol_user($teacher->id, $other->id, 'editingteacher');
+        $target = $this->getDataGenerator()->create_module('page', ['course' => $other->id, 'name' => 'Glossary']);
+
+        $pf = (new update_activity_skill())->preflight(
+            ['activityquery' => 'the resource with the Glossary in it', 'visible' => false],
+            $ctxid,
+            (int)$teacher->id
+        );
+        $this->assertSame('pass', $pf->status);
+        $this->assertSame((int)$target->cmid, (int)$pf->preparedinput['cmid']);
+    }
+
+    /**
+     * The whole-query match outranks a short name that merely stands inside the query.
+     */
+    public function test_name_match_strength_prefers_the_whole_query(): void {
+        $this->assertSame(
+            update_activity_skill::MATCH_WHOLE_QUERY,
+            update_activity_skill::name_match_strength('Vorstellungsforum', 'Vorstellungs-Forum')
+        );
+        $this->assertSame(
+            update_activity_skill::MATCH_NAME_TOKENS,
+            update_activity_skill::name_match_strength('Forum', 'Vorstellungs-Forum')
+        );
+        $this->assertSame(0, update_activity_skill::name_match_strength('Quiz 3', 'Vorstellungs-Forum'));
+
+        $winners = update_activity_skill::strongest_matches(
+            ['Forum', 'Vorstellungsforum', 'Quiz 3'],
+            'Vorstellungs-Forum',
+            static fn(string $name): string => $name
+        );
+        $this->assertSame(['Vorstellungsforum'], $winners);
+    }
+
+    /**
+     * The ambient course never answers with a mere token match before the other courses were searched.
+     */
+    public function test_a_short_name_in_the_ambient_course_does_not_capture_the_query(): void {
+        $this->resetAfterTest();
+        [$course, $teacher, $page, $ctxid] = $this->setup_page();
+        unset($page);
+        $this->getDataGenerator()->create_module('forum', ['course' => $course->id, 'name' => 'Forum']);
+
+        $other = $this->getDataGenerator()->create_course();
+        $this->getDataGenerator()->enrol_user($teacher->id, $other->id, 'editingteacher');
+        $meant = $this->getDataGenerator()->create_module('forum', ['course' => $other->id, 'name' => 'Vorstellungsforum']);
+
+        $pf = (new update_activity_skill())->preflight(
+            ['activityquery' => 'Vorstellungs-Forum', 'visible' => false],
+            $ctxid,
+            (int)$teacher->id
+        );
+        $this->assertSame('pass', $pf->status);
+        $this->assertSame((int)$meant->cmid, (int)$pf->preparedinput['cmid']);
+    }
+
+    /**
+     * The activity reference stays inside the constructor's 160-character field window (wave 32, UA-3).
+     */
+    public function test_the_activityquery_description_fits_the_constructor_window(): void {
+        $schema = (new update_activity_skill())->get_schema();
+        $description = (string)$schema['properties']['activityquery']['description'];
+        $this->assertLessThanOrEqual(159, \core_text::strlen($description));
+    }
 }
