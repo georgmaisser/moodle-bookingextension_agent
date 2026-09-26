@@ -111,7 +111,8 @@ final class diagnose_user_in_course_skill_test extends advanced_testcase {
         $this->assertArrayHasKey('course_clarification', $res);
         $this->assertStringContainsString($course->fullname, $res['observation_full']);
         $this->assertStringContainsString('per course', $res['observation_full']);
-        $this->assertTrue(!empty($res['observation_engine_static']));
+        // The observation carries user words or the person's name: it stays masked (HARD RULE anonymizer, L43 13343).
+        $this->assertTrue(empty($res['observation_engine_static']));
     }
 
     /**
@@ -239,7 +240,8 @@ final class diagnose_user_in_course_skill_test extends advanced_testcase {
         $this->assertStringContainsString('Quiz A', $res['observation_full']);
         $this->assertStringContainsString('Quiz B', $res['observation_full']);
         $this->assertStringContainsString('do NOT repeat the same activityquery', $res['observation_full']);
-        $this->assertTrue(!empty($res['observation_engine_static']));
+        // The observation carries user words or the person's name: it stays masked (HARD RULE anonymizer, L43 13343).
+        $this->assertTrue(empty($res['observation_engine_static']));
     }
 
     /**
@@ -359,7 +361,8 @@ final class diagnose_user_in_course_skill_test extends advanced_testcase {
         $this->assertStringNotContainsString('No completion-tracked activities', $obs);
         $this->assertStringContainsString('Final Quiz', $obs);
         $this->assertStringContainsString('do NOT conclude the activity does not exist', $obs);
-        $this->assertTrue(!empty($res['observation_engine_static']));
+        // The observation carries user words or the person's name: it stays masked (HARD RULE anonymizer, L43 13343).
+        $this->assertTrue(empty($res['observation_engine_static']));
 
         // Without a filter, the tracked quiz is reported course-wide by the progress diagnoser.
         $res2 = (new diagnose_user_in_course_skill())->execute(

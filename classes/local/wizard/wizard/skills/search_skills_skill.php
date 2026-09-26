@@ -189,9 +189,6 @@ class search_skills_skill extends core_skill_base implements skill_trigger_provi
                 'observation_full' => 'No search query was provided to wizard.search_skills. Re-run this skill '
                     . 'with a concrete "query" describing the capability the user needs (use the user\'s own '
                     . 'request). Do NOT conclude from this that the capability is unavailable.',
-                // Instructional engine text — exempt from privacy anonymization
-                // (masking instructions corrupts them, see threads 286/288).
-                'observation_engine_static' => true,
             ];
         }
 
@@ -235,10 +232,9 @@ class search_skills_skill extends core_skill_base implements skill_trigger_provi
             'query' => $query,
             'discovered_skills' => $discovered,
             'observation_full' => $observationfull,
-            // Instructional engine text built from registry descriptions — exempt
-            // from privacy anonymization (masking instructions corrupts them and
-            // made the planner emit non-registered skills, threads 286/288).
-            'observation_engine_static' => true,
+            // Not engine-static: the observation repeats the de-anonymized query, so it stays masked. The flag
+            // never reached a masking layer before L43 (execution_feedback_service dropped it), so this is the
+            // behaviour the skill always had.
         ];
     }
 }

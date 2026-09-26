@@ -265,6 +265,13 @@ class execution_feedback_service {
                 $entry['observation_full'] = trim($result['observation_full']);
             }
 
+            // The skill's declaration that its observation is shipped, non-personal text (e.g. the documentation
+            // excerpt of explain_docs). Dropping it here made every masking layer mask it anyway: L43 ED-1 thread
+            // 13343 read "ANON_USER_2_firstname. number of participants" for "Max. number of participants".
+            if (!empty($result['observation_engine_static'])) {
+                $entry['observation_engine_static'] = true;
+            }
+
             $sanitized[] = $entry;
         }
 

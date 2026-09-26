@@ -449,9 +449,8 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
             'usermessage' => $usermessage,
             'resultid' => null,
             'observation_full' => $observation,
-            // Instructional engine text built from the course inventory — exempt from privacy anonymization
-            // (masking the instruction would corrupt it; activity names are not user PII).
-            'observation_engine_static' => true,
+            // Not engine-static: the observation repeats the user's activity words and stays masked (the flag never
+            // took effect before L43 - execution_feedback_service dropped it).
         ];
     }
 
@@ -540,11 +539,9 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
                 'aspect' => $aspect,
                 'courses' => $courses,
             ],
-            // Instructional engine text built from enrolment facts — exempt from privacy anonymization
-            // (masking the instruction would corrupt it; the subject's own courses are shown to the actor
-            // who already sees them).
+            // Not engine-static: the observation names the person, so it stays masked (HARD RULE anonymizer; the flag
+            // never took effect before L43 - execution_feedback_service dropped it).
             'observation_full' => implode("\n", $lines),
-            'observation_engine_static' => true,
         ];
     }
 
