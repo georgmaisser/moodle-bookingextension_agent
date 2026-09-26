@@ -302,4 +302,45 @@ final class add_activity_skill_test extends advanced_testcase {
         $this->getDataGenerator()->enrol_user($teacher->id, $course->id, 'editingteacher');
         return [$course, $teacher];
     }
+
+    /**
+     * Wave 32 (AA-1, L31/L39/L41): a missing required field is named by the form's own label.
+     *
+     * "- page: Erforderlich" named mod_page's editor element; the reply then asked for the page's title or
+     * URL. The label ("Page content" in English) travels with the message.
+     */
+    public function test_a_missing_required_field_carries_the_form_label(): void {
+        global $PAGE;
+        $this->resetAfterTest();
+        [$course, $teacher] = $this->course_with_teacher();
+        $coursecontext = context_course::instance($course->id);
+        $this->setUser($teacher);
+        $PAGE->set_context($coursecontext);
+
+        $result = (new add_activity_skill())->preflight(
+            ['modname' => 'page', 'section' => 'top', 'name' => 'Intro'],
+            (int)$coursecontext->id,
+            (int)$teacher->id
+        );
+        if (!in_array('ADD_ACTIVITY_FIELDS_INVALID', $result->issuecodes, true)) {
+            $this->markTestSkipped('The page form did not build headless here; the minimal guard answered.');
+        }
+        $message = (string)$result->issues[0]['message'];
+        $this->assertStringContainsString(get_string('content', 'page'), $message);
+        // Review: no new hard-coded wording around it - the line keeps its shape, only the label is added.
+        $this->assertStringContainsString('- page: ' . get_string('content', 'page') . ': ' . get_string('required'), $message);
+    }
+
+    /**
+     * Wave 32 (L42sol AA-4 "Ordner", AA-3 "lien"): the module type is a closed set the constructor picks from.
+     */
+    public function test_modname_is_offered_as_a_closed_set(): void {
+        $schema = (new add_activity_skill())->get_schema();
+        $modname = (array)$schema['properties']['modname'];
+        $this->assertSame(
+            \bookingextension_agent\local\wizard\services\activities\module_catalog_service::WHITELIST,
+            $modname['enum']
+        );
+        $this->assertLessThanOrEqual(159, \core_text::strlen((string)$modname['description']));
+    }
 }

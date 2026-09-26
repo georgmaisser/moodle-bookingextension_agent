@@ -301,7 +301,11 @@ class module_form_contract {
                 continue;
             }
             if ($this->value_is_empty($exported[$element] ?? ($data->{$element} ?? null))) {
-                $errors[$element] = get_string('required');
+                // Wave 32 (AA-1, runs L31/L39/L41): "- page: Erforderlich" named the form element, not the field;
+                // mod_page's element "page" is the page CONTENT, yet the reply asked for the page's name or URL.
+                // The element's own label (the form's words for it) travels with the message.
+                $label = $this->element_label($quickform, $element);
+                $errors[$element] = $label !== '' ? $label . ': ' . get_string('required') : get_string('required');
             }
         }
         try {
@@ -313,6 +317,24 @@ class module_form_contract {
             unset($e);
         }
         return $errors;
+    }
+
+    /**
+     * The visible label of a form element, or '' when it has none.
+     *
+     * @param \MoodleQuickForm $quickform
+     * @param string $element
+     * @return string
+     */
+    private function element_label(\MoodleQuickForm $quickform, string $element): string {
+        try {
+            if (!$quickform->elementExists($element)) {
+                return '';
+            }
+            return trim(strip_tags((string)$quickform->getElement($element)->getLabel()));
+        } catch (\Throwable $e) {
+            return '';
+        }
     }
 
     /**

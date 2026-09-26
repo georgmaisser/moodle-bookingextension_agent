@@ -136,10 +136,13 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
             'properties' => [
                 'modname' => [
                     'type' => 'string',
-                    'description' => 'The activity/resource type to add. Supported: '
-                        . implode(', ', module_catalog_service::WHITELIST) . '. Pass the user\'s wording verbatim '
-                        . '(e.g. "page", "url", "link", "forum"); the system resolves it to a real module '
-                        . 'and, if unclear, lists the addable types. Leave empty if the user did not say which type.',
+                    // Wave 32 (L42sol: AA-4 "Ordner", AA-3 "lien"; ADD_ACTIVITY_MODULE_AMBIGUOUS): the old text asked
+                    // for the user's wording verbatim, and the resolver compares it with the module labels in the
+                    // SITE language - a user writing in another language never matched. The type is a closed set;
+                    // the constructor picks the value, the resolver still accepts anything else leniently.
+                    'enum' => module_catalog_service::WHITELIST,
+                    'description' => 'The type of activity or resource the user means, as one of the listed values. '
+                        . 'Leave it empty if the user named no type; the system then lists addable types.',
                     'required' => false,
                 ],
                 'name' => [
@@ -634,6 +637,7 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
      * @return string
      */
     private function format_field_errors(string $modname, array $errors): string {
+        // Wave 32: a missing required field's message carries the form's own label (module_form_contract).
         $lines = ['I still need some details for the ' . $modname . ' activity:', ''];
         foreach ($errors as $field => $message) {
             $lines[] = '- ' . $field . ': ' . $message;

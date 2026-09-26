@@ -95,4 +95,54 @@ final class section_resolver_service_test extends advanced_testcase {
         $this->assertTrue($resolver->section_exists($course, 1));
         $this->assertFalse($resolver->section_exists($course, 99));
     }
+
+    /**
+     * Wave 32 (AA-4, nine of ten runs): the user's words carry the section's own name.
+     *
+     * "im Einführungsabschnitt" reached the resolver as one compound word and never matched the section
+     * "Einführung". A section whose own name stands inside the query, compared by shape, is the one meant.
+     * The strings here are illustrative shapes, not the prompt: nothing in the resolver knows a word.
+     */
+    public function test_resolve_placement_when_the_query_carries_the_section_name(): void {
+        global $DB;
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course(['format' => 'topics', 'numsections' => 3]);
+        $DB->set_field('course_sections', 'name', 'Grundlagen', ['course' => $course->id, 'section' => 2]);
+        rebuild_course_cache($course->id, true);
+
+        $resolver = new section_resolver_service();
+        $this->assertSame(2, $resolver->resolve_placement($course, 'Grundlagenteil'));
+        $this->assertSame(2, $resolver->resolve_placement($course, 'the Grundlagen block'));
+    }
+
+    /**
+     * Only a teacher-given name counts; the format's generated default names are never carried.
+     */
+    public function test_generated_section_names_are_not_matched_inside_a_query(): void {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course(['format' => 'topics', 'numsections' => 3]);
+        $resolver = new section_resolver_service();
+        $generated = (string)$resolver->list_sections($course)[1]['name'];
+
+        $this->assertNull($resolver->resolve_placement($course, $generated . ' extra words'));
+    }
+
+    /**
+     * Two sections carried by the same query are returned for the caller's question, not guessed.
+     */
+    public function test_two_carried_section_names_are_returned_as_candidates(): void {
+        global $DB;
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course(['format' => 'topics', 'numsections' => 3]);
+        $DB->set_field('course_sections', 'name', 'Alpha', ['course' => $course->id, 'section' => 1]);
+        $DB->set_field('course_sections', 'name', 'Beta', ['course' => $course->id, 'section' => 2]);
+        rebuild_course_cache($course->id, true);
+
+        $resolved = (new section_resolver_service())->resolve_placement($course, 'AlphaBetaGamma');
+        $this->assertIsArray($resolved);
+        $this->assertSame([1, 2], array_column($resolved, 'sectionnum'));
+    }
 }

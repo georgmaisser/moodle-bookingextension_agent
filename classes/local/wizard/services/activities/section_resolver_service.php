@@ -58,6 +58,8 @@ class section_resolver_service {
             $sections[] = [
                 'sectionnum' => $sectionnum,
                 'name' => (string)get_section_name($course, $sectioninfo),
+                // The name a teacher gave the section; '' for the format's generated default name.
+                'customname' => trim((string)($sectioninfo->name ?? '')),
             ];
         }
 
@@ -148,6 +150,28 @@ class section_resolver_service {
         }
         if (count($partial) > 1) {
             return $partial;
+        }
+
+        // Wave 32 (AA-4, nine of ten runs): "im Einführungsabschnitt" reached this resolver verbatim as
+        // "Einführungsabschnitt" and never matched the section "Einführung" - the user's words carry the name,
+        // not the other way round. A section whose OWN name (not the format's generated default) stands inside
+        // the query, compared by shape, is the one meant. No word is read; one match resolves, several are
+        // returned for the caller's question.
+        $querykey = \bookingextension_agent\local\wizard\services\target_query_normalizer::name_key($query);
+        $carried = [];
+        foreach ($sections as $section) {
+            $namekey = \bookingextension_agent\local\wizard\services\target_query_normalizer::name_key(
+                (string)($section['customname'] ?? '')
+            );
+            if ($namekey !== '' && $querykey !== '' && str_contains($querykey, $namekey)) {
+                $carried[] = $section;
+            }
+        }
+        if (count($carried) === 1) {
+            return (int)$carried[0]['sectionnum'];
+        }
+        if (count($carried) > 1) {
+            return $carried;
         }
 
         return null;
