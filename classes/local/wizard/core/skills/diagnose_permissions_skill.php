@@ -94,7 +94,7 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
             'description' => 'Inspect a person\'s ROLES and CAPABILITIES (permissions) across the context chain (system → category '
                 . '→ course → activity). Answers "what roles does X have here", and "may X do <capability> at course Y" including '
                 . 'the ALLOW/PREVENT/PROHIBIT overrides on the chain. For a capability question, pass the technical capability '
-                . 'name in `capability` (e.g. mod/booking:addoption).',
+                . 'name in "capability" (e.g. mod/booking:addoption).',
             'is' => 'One named person\'s roles and capabilities.',
             'not' => 'Who all holds a right; course access, enrolment or grades (course.diagnose_user_in_course); taskflow '
                 . 'rights and tabs (local_taskflow.diagnose_permissions).',

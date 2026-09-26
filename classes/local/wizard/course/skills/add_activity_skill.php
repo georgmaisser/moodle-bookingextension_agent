@@ -414,7 +414,7 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
             try {
                 $moduleinfo = $contract->build_prepared_moduleinfo($course, $modname, $sectionnum, $name, $intro, $settings);
                 if ($modname === 'page') {
-                    // add_moduleinfo() runs headless (no mform), and page_add_instance() only
+                    // The add_moduleinfo() call runs headless (no mform), and page_add_instance() only
                     // copies the 'page' editor into the content column when a form is present —
                     // set the column directly so the body survives the create.
                     foreach (['page', 'content', 'body', 'text'] as $contentkey) {

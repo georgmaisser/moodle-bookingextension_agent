@@ -261,8 +261,11 @@ final class scaffold_course_content_skill_test extends advanced_testcase {
             $this->assertNotSame('', trim($content), "page '{$cm->name}' was saved with an empty body");
             $allbodies .= $content;
         }
-        $this->assertStringContainsString('Inhalt.', $allbodies,
-            'chapter bodies must contain the scripted generation output');
+        $this->assertStringContainsString(
+            'Inhalt.',
+            $allbodies,
+            'chapter bodies must contain the scripted generation output'
+        );
         $quizzes = array_filter($modinfo->get_cms(), static fn($cm): bool => $cm->modname === 'quiz');
         $this->assertCount(0, $quizzes, 'no quizzes were requested');
 

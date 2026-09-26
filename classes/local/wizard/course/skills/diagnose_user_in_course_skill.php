@@ -620,8 +620,10 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
         $hits = [];
         foreach ($this->build_user_courses_payload($targetuserid, $actinguserid) as $candidate) {
             $candidateid = (int)($candidate['courseid'] ?? 0);
-            if ($candidateid > 0 && $candidateid !== $ambientcourseid
-                    && $this->course_holds_named_target($candidateid, $aspect, $query)) {
+            if (
+                $candidateid > 0 && $candidateid !== $ambientcourseid
+                    && $this->course_holds_named_target($candidateid, $aspect, $query)
+            ) {
                 $hits[] = $candidate;
             }
         }

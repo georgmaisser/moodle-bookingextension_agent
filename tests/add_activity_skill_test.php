@@ -280,8 +280,11 @@ final class add_activity_skill_test extends advanced_testcase {
         // Regression guard (Wunderbyte-GmbH#2201): the page body must be persisted, not just the
         // module created — page_add_instance() drops the editor content on the headless create.
         $content = (string)$DB->get_field('page', 'content', ['id' => $cm->instance], MUST_EXIST);
-        $this->assertStringContainsString('Hello world.', $content,
-            'the page body must contain the provided content');
+        $this->assertStringContainsString(
+            'Hello world.',
+            $content,
+            'the page body must contain the provided content'
+        );
 
         // The preview is a self-contained data block.
         $preview = $skill->get_result_preview($result, $coursecontextid, (int)$teacher->id);
