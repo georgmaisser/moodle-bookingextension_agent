@@ -503,6 +503,7 @@ class docs_lookup_service {
             'path' => $relpath,
             'title' => $title,
             'content' => $windowcontent,
+            'outline' => self::build_outline($alllines),
             'excerpt' => mb_substr($windowcontent, 0, 300),
             'line_start' => $linestart,
             'line_count' => count($slicedlines),
@@ -511,6 +512,30 @@ class docs_lookup_service {
             'total_lines' => $totallines,
             'score' => 0,
         ];
+    }
+
+    /**
+     * The markdown headings of a whole document with their 1-based line numbers (fenced code is skipped).
+     *
+     * Lets a reader of one window see which sections lie outside it and where they start - the structure of the
+     * document, not its words.
+     *
+     * @param string[] $lines
+     * @return array<int, array{line: int, heading: string}>
+     */
+    private static function build_outline(array $lines): array {
+        $outline = [];
+        $infence = false;
+        foreach ($lines as $index => $line) {
+            if (preg_match('/^\s*(\x60{3}|~{3})/', $line)) {
+                $infence = !$infence;
+                continue;
+            }
+            if (!$infence && preg_match('/^#{1,6}\s+\S/', $line)) {
+                $outline[] = ['line' => $index + 1, 'heading' => rtrim($line)];
+            }
+        }
+        return $outline;
     }
 
     /**

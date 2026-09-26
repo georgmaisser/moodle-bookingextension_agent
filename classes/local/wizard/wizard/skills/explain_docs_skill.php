@@ -53,6 +53,12 @@ class explain_docs_skill extends core_skill_base implements
     private const FIRST_STEP_LINE_COUNT = 40;
 
     /**
+     * Continuation window: reading on takes the largest window, so the longest page of the corpus (429 lines) is
+     * complete after four reads, inside the loop budget (L43 ED-1, thread 13343).
+     */
+    private const CONTINUATION_LINE_COUNT = 160;
+
+    /**
      * Constructor.
      */
     public function __construct() {
@@ -129,38 +135,27 @@ class explain_docs_skill extends core_skill_base implements
                 ],
                 'corpus_id' => [
                     'type' => 'string',
-                    'description' => 'Optional: which documentation corpus to read from (e.g. "mod_booking"). '
-                        . 'Only relevant together with doc_path/doc_path_candidates; when omitted the '
-                        . 'file is searched across all corpora. Semantic search already returns the '
-                        . 'correct corpus on its own.',
+                    'description' => 'Corpus of doc_path (e.g. "mod_booking"), as given under "To read on" in a '
+                        . 'previous result. Leave it out otherwise; search finds the corpus itself.',
                     'required' => false,
                 ],
                 'doc_path' => [
                     'type' => 'string',
-                    'description' => 'Optional: relative path to the exact documentation file '
-                        . 'when the planner already knows which document is relevant '
-                        . '(e.g. "booking_rules/README.md"). Bypasses search entirely.',
+                    'description' => 'Path of one documentation file, e.g. the doc_path under "To read on" in a '
+                        . 'previous result. Leave it out to search by the question.',
                     'required' => false,
                 ],
                 'doc_path_candidates' => [
                     'type' => 'array',
-                    'description' => 'Optional: up to 3 candidate doc paths for the planner to try '
-                        . 'in order when confident but not certain about the exact file.',
+                    'description' => 'Up to 3 documentation paths to try in order when the exact file is not certain.',
                     'items' => ['type' => 'string'],
                     'maxItems' => 3,
                     'required' => false,
                 ],
                 'line_start' => [
                     'type' => 'integer',
-                    'description' => 'Line number to start reading from (1-based). Use the '
-                        . 'next_line_start value from a previous result to read further into '
-                        . 'the same document.',
-                    'required' => false,
-                ],
-                'line_count' => [
-                    'type' => 'integer',
-                    'description' => 'Maximum lines to return in this read window (default '
-                        . self::DEFAULT_LINE_COUNT . ', max 160).',
+                    'description' => 'Where to continue a page: the line of a listed section, or the line_start under '
+                        . '"To read on", in a previous result (with its doc_path).',
                     'required' => false,
                 ],
             ],
@@ -221,8 +216,8 @@ class explain_docs_skill extends core_skill_base implements
                     '- Always set input.question to the user\'s actual question verbatim.',
                     '- If the user\'s question is not in English, add up to 2 English paraphrases to '
                     . 'input.search_queries for better recall (keep domain terms like "booking rules" unchanged).',
-                    '- If the observation includes "has_more: true", offer to read more by calling this skill '
-                    . 'again with input.line_start set to the returned next_line_start value.',
+                    '- To read further in a page, call this skill again with doc_path and line_start: the line of the '
+                    . 'listed section the answer needs, or the line_start under "To read on" to read on in order.',
                     '- If the observation includes doc URLs, always pass them verbatim to the user as '
                     . 'Markdown links in your message.',
                     '- If you already know the exact doc path from context, set input.doc_path to skip search.',
@@ -284,7 +279,10 @@ class explain_docs_skill extends core_skill_base implements
             static fn(string $v): bool => $v !== ''
         ));
         $linestart = max(1, (int)($input['line_start'] ?? 1));
-        $linecount = min(160, max(10, (int)($input['line_count'] ?? self::FIRST_STEP_LINE_COUNT)));
+        $defaultcount = $linestart > 1 ? self::CONTINUATION_LINE_COUNT : self::FIRST_STEP_LINE_COUNT;
+        // The window size is the skill's decision, not a model value: in L43 re-checks the construction chose 80 lines
+        // for a continuation and the longest page no longer fitted the loop budget.
+        $linecount = $defaultcount;
 
         if ($question === '') {
             return $this->error_result(
@@ -445,13 +443,14 @@ class explain_docs_skill extends core_skill_base implements
 
         $observation = $this->build_observation_full(
             $path,
+            $corpusid,
             $title,
             $content,
             $docurl,
             $linestart,
             $totallines,
-            $hasmore,
-            $nextlinestart
+            $hasmore ? $nextlinestart : null,
+            (array)($doc['outline'] ?? [])
         );
 
         $usermessage = $summary !== '' ? $summary : $title;
@@ -483,24 +482,26 @@ class explain_docs_skill extends core_skill_base implements
      * Build the observation string returned to the orchestrator/synchronizer.
      *
      * @param string   $path
+     * @param string   $corpusid
      * @param string   $title
      * @param string   $content
      * @param string   $docurl
      * @param int      $linestart
      * @param int      $totallines
-     * @param bool     $hasmore
-     * @param int|null $nextlinestart
+     * @param int|null $nextlinestart Where to read on, null when the page is complete.
+     * @param array    $outline Headings of the whole page with their lines (docs_lookup_service).
      * @return string
      */
     private function build_observation_full(
         string $path,
+        string $corpusid,
         string $title,
         string $content,
         string $docurl,
         int $linestart,
         int $totallines,
-        bool $hasmore,
-        ?int $nextlinestart
+        ?int $nextlinestart,
+        array $outline
     ): string {
         $lines = [];
         // Grounding contract: documentation answers must come from the excerpt and
@@ -514,8 +515,11 @@ class explain_docs_skill extends core_skill_base implements
             . 'behaviour from outside knowledge, and NEVER invent identifiers.';
         $lines[] = '- If the user asks whether something exists and it is not in this excerpt, answer that it is NOT '
             . 'documented and list what the excerpt actually documents instead.';
-        $lines[] = '- If this excerpt does not cover the question and has_more is true, read on (next_line_start) or '
-            . 'search a more specific document BEFORE answering — do not fill gaps from memory.';
+        // L43 ED-1, thread 13343: one rule for reading on, matching the field descriptions and the guidance. The
+        // values to continue with stand below as facts (the same hand-over as CHOICES), never as a second rule.
+        $lines[] = '- If the answer is in a section listed under "Not in this excerpt", call ' . self::SKILL_NAME
+            . ' again with doc_path and that section\'s line as line_start before answering. To read the page on in '
+            . 'order, use doc_path and line_start from "To read on".';
         $lines[] = '';
         $lines[] = 'Doc: ' . $path;
         if ($title !== '' && $title !== $path) {
@@ -524,12 +528,28 @@ class explain_docs_skill extends core_skill_base implements
         if ($docurl !== '') {
             $lines[] = 'Links: ' . $docurl;
         }
-        $lines[] = 'Lines: ' . $linestart . '–' . ($linestart + substr_count($content, "\n"));
-        if ($totallines > 0) {
-            $lines[] = 'Total lines: ' . $totallines;
+        $lineend = $linestart + substr_count($content, "\n");
+        $lines[] = 'Lines ' . $linestart . '–' . $lineend . ($totallines > 0 ? ' of ' . $totallines : '') . '.';
+        $before = [];
+        $after = [];
+        foreach ($outline as $entry) {
+            $line = (int)($entry['line'] ?? 0);
+            $label = '"' . (string)($entry['heading'] ?? '') . '" (line ' . $line . ')';
+            if ($line < $linestart) {
+                $before[] = $label;
+            } else if ($line > $lineend) {
+                $after[] = $label;
+            }
         }
-        if ($hasmore && $nextlinestart !== null) {
-            $lines[] = 'has_more: true  next_line_start: ' . $nextlinestart;
+        if (!empty($before)) {
+            $lines[] = 'Before this excerpt: ' . implode(', ', $before) . '.';
+        }
+        if (!empty($after)) {
+            $lines[] = 'Not in this excerpt: ' . implode(', ', $after) . '.';
+        }
+        if ($nextlinestart !== null) {
+            $lines[] = 'To read on: doc_path=' . $path . ', line_start=' . $nextlinestart
+                . ($corpusid !== '' ? ', corpus_id=' . $corpusid : '');
         }
         $lines[] = '';
         $lines[] = $content;
