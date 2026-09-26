@@ -74,9 +74,10 @@ final class explain_docs_read_on_real_llm_test extends abstract_agent_testcase {
     }
 
     /**
-     * The answer stands after line 40: the model reads on with doc_path and line_start from the first result.
+     * L43 DWL/ED shape: the answer stands after line 40 of the waiting-list page. The page is within the first-read
+     * budget, so it arrives whole in the first result (plan B) - no reading on is needed.
      */
-    public function test_the_model_reads_on_when_the_answer_is_further_down(): void {
+    public function test_the_answer_further_down_reaches_the_model(): void {
         $this->setUser($this->teacher);
         [$store, $runtime, $threadid] = $this->build_runtime();
 
@@ -89,40 +90,39 @@ final class explain_docs_read_on_real_llm_test extends abstract_agent_testcase {
         );
 
         [$inputs, $observations] = $this->doc_reads((int)$threadid);
-        $this->assertGreaterThanOrEqual(2, count($inputs), 'a second read: ' . $this->payload_text($result));
-        $continued = array_filter($inputs, static fn(array $in): bool => (int)($in['line_start'] ?? 1) > 1);
-        $this->assertNotEmpty($continued, 'a read with line_start > 1: ' . json_encode($inputs));
-        $this->assertStringContainsString('keepusersbookedonreducingmaxanswers', $observations, 'the section was read');
+        $this->assertNotEmpty($inputs, $this->diagnosis((int)$threadid, $result, $inputs));
+        $first = explode('DOCUMENTATION GROUNDING CONTRACT', $observations)[1] ?? '';
+        $this->assertStringContainsString('keepusersbookedonreducingmaxanswers', $first, 'in the first read');
         $this->assertNotSame('error', (string)($result['response_type'] ?? ''), $this->payload_text($result));
     }
 
     /**
-     * The answer lies beyond the first window of the longest page (429 lines): the model reads the section that holds
-     * it. The page answers twice - section 2 (line 51, "Encoding: UTF-8 (important for special characters)") and
-     * section 18 (line 416, "Save your CSV as UTF-8"); either is a correct read (real-LLM run 1, 2026-09-26, jumped to
-     * section 2).
+     * The answer lies only in section 19 (line 429) of the 430-line page, outside the first read (lines 1-145); the
+     * first read names the section with its line. The model reaches it - by the listed section or by reading on - and
+     * answers from it. (Two earlier questions of this test were answered correctly from the first read already: section
+     * 2 covers encoding and empty cells on update. The question now has exactly one place in the page.)
      */
-    public function test_the_model_reads_the_section_the_answer_needs(): void {
+    public function test_the_model_reaches_the_section_the_answer_needs(): void {
         $this->setUser($this->teacher);
         [$store, $runtime, $threadid] = $this->build_runtime();
 
         $result = $this->chat(
-            'Lies in der Doku CSV_IMPORT_USER_GUIDE.md nach: Was soll ich tun, wenn Sonderzeichen nach dem '
-                . 'CSV-Import falsch aussehen?',
+            'Schau in der Doku CSV_IMPORT_USER_GUIDE.md nach: Welche Beispieldatei zeigt, wie man Trainer zuweist '
+                . 'und Nutzer direkt vorab bucht?',
             (int)$threadid,
             $store,
             $runtime
         );
 
         [$inputs, $observations] = $this->doc_reads((int)$threadid);
-        $continued = array_filter($inputs, static fn(array $in): bool => (int)($in['line_start'] ?? 1) > 40);
-        $this->assertNotEmpty($continued, 'a read beyond the first window: ' . json_encode($inputs));
-        $this->assertMatchesRegularExpression(
-            '/Encoding: \*\*UTF-8\*\* \(important for special characters\)|Save your CSV as UTF-8/',
-            $observations,
-            json_encode($inputs)
+        $diagnosis = $this->diagnosis((int)$threadid, $result, $inputs);
+        $this->assertStringContainsString('import_users_and_teachers.csv', $observations, $diagnosis);
+        $this->assertLessThanOrEqual(3, count($inputs), $diagnosis);
+        $this->assertStringContainsString(
+            'import_users_and_teachers',
+            (string)($result['message'] ?? '') . $this->payload_text($result),
+            $diagnosis
         );
-        $this->assertStringContainsString('UTF-8', $this->payload_text($result));
     }
 
     /**

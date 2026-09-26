@@ -227,13 +227,7 @@ class explain_docs_skill extends core_skill_base implements
                     . 'input.search_queries for better recall (keep domain terms like "booking rules" unchanged).',
                     '- To read further in a page, call this skill again with doc_path and line_start: the line of the '
                     . 'listed section the answer needs, or the line_start under "To read on" to read on in order.',
-                    '- If the observation includes doc URLs, always pass them verbatim to the user as '
-                    . 'Markdown links in your message.',
                     '- If you already know the exact doc path from context, set input.doc_path to skip search.',
-                    '- When your reply reproduces a shortcode (anything in square brackets like '
-                    . '[bookingoptions ...] or a closing [/bookingoptions]), write it verbatim — do NOT '
-                    . 'HTML-escape the brackets. The reply is displayed without text filters, so shortcodes are '
-                    . 'shown literally as written (prefer a code span/block for clarity).',
                 ],
             ],
         ];
@@ -297,6 +291,8 @@ class explain_docs_skill extends core_skill_base implements
         if (!empty($input['whole_page'])) {
             $linecount = docs_lookup_service::WHOLE_PAGE;
         }
+        // A first read (no line_start, no whole_page) plans its own window: the whole page up to the budget (plan B).
+        $firstread = $linestart === 1 && empty($input['whole_page']);
 
         if ($question === '') {
             return $this->error_result(
@@ -310,9 +306,7 @@ class explain_docs_skill extends core_skill_base implements
 
         // 1. Planner-supplied direct path (with explicit corpus when given, else search all corpora).
         if ($docpath !== '') {
-            $doc = $corpusid !== ''
-                ? $svc->read_doc_by_path($corpusid, $docpath, $linestart, $linecount)
-                : $svc->read_doc_any_corpus($docpath, $linestart, $linecount);
+            $doc = $this->read_window($svc, $corpusid, $docpath, $linestart, $linecount, $firstread);
             if ($doc !== null) {
                 return $this->build_doc_result($doc, $svc, $outputlang, $question, $debugbase . "\nmode=direct_path");
             }
@@ -324,9 +318,7 @@ class explain_docs_skill extends core_skill_base implements
             if ($candidate === '') {
                 continue;
             }
-            $doc = $corpusid !== ''
-                ? $svc->read_doc_by_path($corpusid, $candidate, $linestart, $linecount)
-                : $svc->read_doc_any_corpus($candidate, $linestart, $linecount);
+            $doc = $this->read_window($svc, $corpusid, $candidate, $linestart, $linecount, $firstread);
             if ($doc !== null) {
                 return $this->build_doc_result(
                     $doc,
@@ -345,11 +337,13 @@ class explain_docs_skill extends core_skill_base implements
         if (!empty($semanticresults)) {
             $best = $semanticresults[0];
             $score = (int)($best['score'] ?? 0);
-            $doc = $svc->read_doc_by_path(
+            $doc = $this->read_window(
+                $svc,
                 (string)($best['corpus_id'] ?? ''),
                 (string)($best['path'] ?? ''),
                 $linestart,
-                $linecount
+                $linecount,
+                $firstread
             );
             if ($doc !== null) {
                 return $this->build_doc_result(
@@ -375,11 +369,13 @@ class explain_docs_skill extends core_skill_base implements
 
         if (!empty($lexicalresults)) {
             $best = $lexicalresults[0];
-            $doc = $svc->read_doc_by_path(
+            $doc = $this->read_window(
+                $svc,
                 (string)($best['corpus_id'] ?? ''),
                 (string)($best['path'] ?? ''),
                 $linestart,
-                $linecount
+                $linecount,
+                $firstread
             );
             if ($doc !== null) {
                 return $this->build_doc_result(
@@ -493,6 +489,43 @@ class explain_docs_skill extends core_skill_base implements
     }
 
     /**
+     * Read one window of a page. A continuation or a whole-page request reads as asked; a first read reads the whole
+     * page up to docs_lookup_service::FIRST_READ_CHAR_BUDGET, a longer page from its start up to the budget (L43
+     * ED-1: the 40-line window ended one line before the section the question needed).
+     *
+     * @param docs_lookup_service $svc
+     * @param string $corpusid Empty: try every corpus.
+     * @param string $path
+     * @param int $linestart
+     * @param int $linecount
+     * @param bool $firstread
+     * @return array|null
+     */
+    private function read_window(
+        docs_lookup_service $svc,
+        string $corpusid,
+        string $path,
+        int $linestart,
+        int $linecount,
+        bool $firstread
+    ): ?array {
+        $read = static function (int $start, int $count) use ($svc, $corpusid, $path): ?array {
+            return $corpusid !== ''
+                ? $svc->read_doc_by_path($corpusid, $path, $start, $count)
+                : $svc->read_doc_any_corpus($path, $start, $count);
+        };
+        if (!$firstread) {
+            return $read($linestart, $linecount);
+        }
+        $whole = $read(1, docs_lookup_service::WHOLE_PAGE);
+        if ($whole === null) {
+            return null;
+        }
+        [$start, $count] = docs_lookup_service::first_window($whole, docs_lookup_service::FIRST_READ_CHAR_BUDGET);
+        return $count === docs_lookup_service::WHOLE_PAGE ? $whole : $read($start, $count);
+    }
+
+    /**
      * Build the observation string returned to the orchestrator/synchronizer.
      *
      * @param string   $path
@@ -524,16 +557,21 @@ class explain_docs_skill extends core_skill_base implements
         // travels with the observation so every consumer (next planner turn AND
         // synchronizer) sees it right next to the content it constrains.
         $lines[] = 'DOCUMENTATION GROUNDING CONTRACT (non-negotiable):';
-        $lines[] = '- The excerpt below is the ONLY authoritative source for answering the documentation question.';
-        $lines[] = '- Answer EXCLUSIVELY from this excerpt. Do NOT add parameters, options, attributes, features or '
-            . 'behaviour from outside knowledge, and NEVER invent identifiers.';
-        $lines[] = '- If the user asks whether something exists and it is not in this excerpt, answer that it is NOT '
-            . 'documented and list what the excerpt actually documents instead.';
+        // Plan D (2026-09-26): the rules speak of the page as read so far - an excerpt of a longer page does not prove
+        // that something is undocumented, and further reads of the same page are grounded too.
+        $lines[] = '- The documentation read from this page is the ONLY authoritative source for the answer.';
+        $lines[] = '- Answer EXCLUSIVELY from it. Do NOT add parameters, options, attributes, features or behaviour from '
+            . 'outside knowledge, and NEVER invent identifiers.';
+        $lines[] = '- Something is NOT documented only if it is missing from the whole page - an excerpt that lists '
+            . 'sections under "Not in this excerpt" is not the whole page.';
         // L43 ED-1, thread 13343: one rule for reading on, matching the field descriptions and the guidance. The
         // values to continue with stand below as facts (the same hand-over as CHOICES), never as a second rule.
         $lines[] = '- If the answer is in a section listed under "Not in this excerpt", call ' . self::SKILL_NAME
             . ' again with doc_path and that section\'s line as line_start before answering. To read the page on in '
             . 'order, use doc_path and line_start from "To read on".';
+        // Moved from the skill guidance (read by selection and construction, never by the reply writer).
+        $lines[] = '- Shortcodes in square brackets (e.g. [bookingoptions ...]) are shown literally: quote them verbatim, '
+            . 'never HTML-escaped.';
         $lines[] = '';
         $lines[] = 'Doc: ' . $path;
         if ($title !== '' && $title !== $path) {

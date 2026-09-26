@@ -47,6 +47,9 @@ class docs_lookup_service {
     /** Line count that asks for the whole page in one window. */
     public const WHOLE_PAGE = 0;
 
+    /** Characters a first read may carry: a page up to this size is read whole (70 of 90 pages, 2026-09-26). */
+    public const FIRST_READ_CHAR_BUDGET = 6000;
+
     /** Default number of lines to return per read window. */
     private const DEFAULT_LINE_COUNT = 80;
 
@@ -518,6 +521,34 @@ class docs_lookup_service {
             'total_lines' => $totallines,
             'score' => 0,
         ];
+    }
+
+    /**
+     * The window of a first read (L43 ED-1, plan B, George 2026-09-26): a page up to the character budget is read
+     * whole, a longer one from its start up to the budget. Reading the best-matching section first (plan A) was
+     * measured and dropped: on a page about one topic the index ranked the page start first and the section that held
+     * the answer fifth to seventh (scores 0.78 to 0.74).
+     *
+     * @param array $wholedoc A whole-page read (content) from build_windowed_doc.
+     * @param int $charbudget
+     * @return array{0: int, 1: int} First line and line count; line count WHOLE_PAGE for the whole page.
+     */
+    public static function first_window(array $wholedoc, int $charbudget): array {
+        $content = (string)($wholedoc['content'] ?? '');
+        if (mb_strlen($content) <= $charbudget) {
+            return [1, self::WHOLE_PAGE];
+        }
+        $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $content));
+        $chars = 0;
+        $last = 1;
+        foreach ($lines as $index => $line) {
+            $chars += mb_strlen((string)$line) + 1;
+            if ($chars > $charbudget && $index > 0) {
+                break;
+            }
+            $last = $index + 1;
+        }
+        return [1, $last];
     }
 
     /**

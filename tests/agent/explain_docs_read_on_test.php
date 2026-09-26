@@ -16,6 +16,7 @@
 
 namespace bookingextension_agent;
 
+use bookingextension_agent\local\wizard\services\lookup\docs_lookup_service;
 use bookingextension_agent\local\wizard\wizard\skills\explain_docs_skill;
 
 defined('MOODLE_INTERNAL') || die();
@@ -92,22 +93,67 @@ final class explain_docs_read_on_test extends abstract_agent_testcase {
     }
 
     /**
-     * The first read states which sections it does not contain and where to read on - facts, no contradicting rules.
+     * A first read of a long page without a matched section reads from the start up to the character budget and states
+     * which sections it does not contain and where to read on - facts, no contradicting rules.
      */
     public function test_the_first_read_names_the_missing_sections_and_where_to_read_on(): void {
+        $result = $this->read(['doc_path' => self::LONGEST]);
+        $observation = (string)$result['observation_full'];
+
+        $this->assertStringContainsString('Lines 1–145 of 430.', $observation);
+        $this->assertStringContainsString('"## 18. Tips and common mistakes" (line 406)', $observation);
+        $this->assertStringContainsString('To read on: doc_path=' . self::LONGEST . ', line_start=146', $observation);
+        $this->assertStringNotContainsString('next_line_start', $observation);
+        $this->assertLessThanOrEqual(
+            docs_lookup_service::FIRST_READ_CHAR_BUDGET + 3000,
+            mb_strlen($observation),
+            'the budget bounds the first read (plus header and section list)'
+        );
+    }
+
+    /**
+     * Plan B: a page within the character budget is read whole at once - the waiting-list answer from line 41 on is in
+     * the first read (L43 ED-1: the 40-line window ended one line before it).
+     */
+    public function test_a_short_page_is_read_whole_at_once(): void {
         $result = $this->read(['doc_path' => self::WAITINGLIST]);
         $observation = (string)$result['observation_full'];
 
-        $this->assertStringContainsString('Lines 1–40 of 83.', $observation);
-        $this->assertStringContainsString('"## Reducing the limits: where do users go?" (line 41)', $observation);
-        $this->assertStringContainsString('To read on: doc_path=' . self::WAITINGLIST, $observation);
-        $this->assertStringContainsString('line_start=41', $observation);
-        $this->assertStringNotContainsString('next_line_start', $observation);
-        $this->assertStringNotContainsString(
-            'Reducing the limits: where do users go?' . "\n",
-            $observation,
-            'the section itself is not in the first window'
+        $this->assertStringContainsString('Lines 1–83 of 83.', $observation);
+        $this->assertStringContainsString('keepusersbookedonreducingmaxanswers', $observation);
+        $this->assertStringNotContainsString('To read on:', $observation);
+    }
+
+    /**
+     * Plan B: the first window is the whole page within the budget, else the page start up to the budget.
+     */
+    public function test_the_first_window_follows_the_character_budget(): void {
+        $this->setAdminUser();
+        $svc = new docs_lookup_service();
+        $long = $svc->read_doc_any_corpus(self::LONGEST, 1, docs_lookup_service::WHOLE_PAGE);
+        $this->assertSame([1, 145], docs_lookup_service::first_window($long, docs_lookup_service::FIRST_READ_CHAR_BUDGET));
+
+        $short = $svc->read_doc_any_corpus(self::WAITINGLIST, 1, docs_lookup_service::WHOLE_PAGE);
+        $this->assertSame(
+            [1, docs_lookup_service::WHOLE_PAGE],
+            docs_lookup_service::first_window($short, docs_lookup_service::FIRST_READ_CHAR_BUDGET)
         );
+    }
+
+    /**
+     * Plan D: no rule contradicts a partial read, and the reply rules stand where the reply writer reads them.
+     */
+    public function test_the_observation_and_guidance_do_not_contradict_each_other(): void {
+        $observation = (string)$this->read(['doc_path' => self::LONGEST])['observation_full'];
+        // An excerpt of a longer page never proves that something is undocumented.
+        $this->assertStringNotContainsString('it is not in this excerpt, answer that it is NOT documented', $observation);
+        $this->assertStringContainsString('Something is NOT documented only if it is missing from the whole page', $observation);
+        $this->assertStringContainsString('Shortcodes in square brackets', $observation);
+
+        $guidance = implode("\n", (array)((new explain_docs_skill())->get_contextual_prompt_packs()[0]['guidance'] ?? []));
+        // Selection and construction read the guidance; they never write the reply.
+        $this->assertStringNotContainsString('Markdown links in your message', $guidance);
+        $this->assertStringNotContainsString('shortcode', $guidance);
     }
 
     /**
@@ -142,7 +188,7 @@ final class explain_docs_read_on_test extends abstract_agent_testcase {
             }
         } while ($more && $reads < 10);
 
-        $this->assertLessThanOrEqual(4, $reads, 'first window plus large continuation windows');
+        $this->assertLessThanOrEqual(3, $reads, 'budgeted first window plus large continuation windows');
         $this->assertLessThan(\bookingextension_agent\local\wizard\agent_runtime::MAX_LOOP_STEPS, $reads + 1);
         $this->assertStringContainsString('## 19. Example files', $seen);
         $this->assertStringContainsString('Save your CSV as UTF-8', $seen);
@@ -193,7 +239,7 @@ final class explain_docs_read_on_test extends abstract_agent_testcase {
         $this->setUser($this->teacher);
         $_POST['sesskey'] = sesskey();
         [$store, $runtime, $threadid] = $this->build_runtime();
-        $question = 'Ich habe die Plätze einer Option von 20 auf 10 reduziert, aber alle 20 sind noch gebucht. Warum?';
+        $question = 'Wie buche ich per CSV-Import direkt Nutzer in eine Option?';
         $this->install_phase_scripted_planner(
             [
                 $this->selector_skill_call('wizard.explain_docs'),
@@ -201,11 +247,11 @@ final class explain_docs_read_on_test extends abstract_agent_testcase {
                 $this->planner_sufficient(''),
             ],
             [
-                $this->constructor_skill_call('wizard.explain_docs', ['question' => $question, 'doc_path' => self::WAITINGLIST]),
+                $this->constructor_skill_call('wizard.explain_docs', ['question' => $question, 'doc_path' => self::LONGEST]),
                 $this->constructor_skill_call('wizard.explain_docs', [
                     'question' => $question,
-                    'doc_path' => self::WAITINGLIST,
-                    'line_start' => 41,
+                    'doc_path' => self::LONGEST,
+                    'line_start' => 146,
                 ]),
             ]
         );
@@ -221,13 +267,13 @@ final class explain_docs_read_on_test extends abstract_agent_testcase {
             }
         }
         $this->assertCount(2, $inputs, $this->scripted_phase_sequence());
-        $this->assertSame(41, (int)($inputs[1]['line_start'] ?? 0));
+        $this->assertSame(146, (int)($inputs[1]['line_start'] ?? 0));
         $constructorprompts = array_values(array_filter(
             $this->scriptedplannerprompts,
             static fn(string $p): bool => strpos($p, 'phase_handoff.selection=') !== false
         ));
-        $this->assertStringContainsString('To read on: doc_path=' . self::WAITINGLIST . ', line_start=41', $constructorprompts[1]);
+        $this->assertStringContainsString('To read on: doc_path=' . self::LONGEST . ', line_start=146', $constructorprompts[1]);
         $sync = implode("\n", $this->scriptedsyncprompts);
-        $this->assertStringContainsString('keepusersbookedonreducingmaxanswers', $sync, 'the synchronizer sees the section');
+        $this->assertStringContainsString('## 9. Directly booking users', $sync, 'the synchronizer sees the continuation');
     }
 }
