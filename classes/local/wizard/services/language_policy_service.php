@@ -96,7 +96,17 @@ class language_policy_service {
      */
     public function selector_language(array $result): string {
         $selection = (array)($result['planner_result']['selection'] ?? []);
-        return $this->known_language((string)($selection['user_lang'] ?? $selection['lang'] ?? ''));
+        // The selection state keeps the selector's parsed output under phase_output (thread 15788); a top-level value
+        // is used where a path sets one.
+        $output = (array)($selection['phase_output'] ?? []);
+        $candidates = [$selection['user_lang'] ?? '', $output['user_lang'] ?? '', $selection['lang'] ?? '', $output['lang'] ?? ''];
+        foreach ($candidates as $value) {
+            $code = $this->known_language((string)$value);
+            if ($code !== '') {
+                return $code;
+            }
+        }
+        return '';
     }
 
     /**
