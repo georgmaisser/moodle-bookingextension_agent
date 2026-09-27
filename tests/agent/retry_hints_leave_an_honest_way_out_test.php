@@ -84,6 +84,17 @@ final class retry_hints_leave_an_honest_way_out_test extends \advanced_testcase 
     }
 
     /**
+     * An id picked from the choices counts as given by the user (constructor rule 1 allows only user values).
+     *
+     * L47 UOT-2 (15843), BU-1 (15849): the selector picked the option from the choices, the constructor then refused
+     * the id ("Fill a field only with a value the user gave ... never invent an id") and asked the user. Rule 1 has the
+     * same exception for USER MEMORY. A/B at the recorded constructor calls, 20 runs: UOT-2 16 -> 20, BU-1 12 -> 18.
+     */
+    public function test_a_choice_id_counts_as_given_by_the_user(): void {
+        $this->assertStringContainsString('counts as given by the user', $this->hint('PREFLIGHT_CHOICES_OFFERED'));
+    }
+
+    /**
      * Rule 20 keeps "no article"; the unfit flag is part of the constructor's output contract.
      */
     public function test_rule_20_and_the_output_contract(): void {
