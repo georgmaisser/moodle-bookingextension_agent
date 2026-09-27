@@ -1117,7 +1117,11 @@ class agent_runtime {
                 . 'Nothing was executed. A choice that fits the user\'s words by meaning or attributes goes into the '
                 // L47 UOT-2/BU-1: without this sentence constructor rule 1 ("only a value the user gave") made the
                 // constructor refuse the id the selector had picked. A/B: UOT-2 16 -> 20, BU-1 12 -> 18 of 20.
-                . 'field named after "CHOICES for", by its id. An id from these choices counts as given by the user.',
+                . 'field named after "CHOICES for", by its id. An id from these choices counts as given by the user. '
+                // L48 DBI-4 (16682), N45 FOR-3 (18181), PM-4 (18280): one choice fitted, the planner asked anyway.
+                // A/B at the recorded re-plan calls, planner action: DBI-4 takes the id 4 -> 11 of 20, FOR-3 asks
+                // 2 -> 0, PM-4 unchanged (19 of 20 take it).
+                . 'When exactly one choice fits, take it; ask only when several fit or none does.',
             'CONTRACT_CONFIRMATION_DOWNGRADED_TO_CLARIFICATION' => 'The previous construction described an action but '
                 . 'carried no command. Nothing was executed or staged.',
             'CONTRACT_EMPTY_MESSAGE_CLARIFICATION' => 'The previous output had an empty message. The message is the text '

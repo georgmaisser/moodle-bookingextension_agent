@@ -95,6 +95,18 @@ final class retry_hints_leave_an_honest_way_out_test extends \advanced_testcase 
     }
 
     /**
+     * One fitting choice is taken, not asked about (wave 36).
+     *
+     * L48 DBI-4 (16682): fifty options listed, exactly one "Excel" among them - the planner asked "is this the one?".
+     * N45 FOR-3 (18181): three memories, one about morning slots - asked. PM-4 (18280): three templates, one completion
+     * confirmation - asked. A/B at the recorded re-plan calls (planner action, 20 runs): DBI-4 takes the id 4 -> 11,
+     * FOR-3 asks 2 -> 0, PM-4 19 -> 19.
+     */
+    public function test_one_fitting_choice_is_taken(): void {
+        $this->assertStringContainsString('exactly one choice fits, take it', $this->hint('PREFLIGHT_CHOICES_OFFERED'));
+    }
+
+    /**
      * Rule 20 keeps "no article"; the unfit flag is part of the constructor's output contract.
      */
     public function test_rule_20_and_the_output_contract(): void {
