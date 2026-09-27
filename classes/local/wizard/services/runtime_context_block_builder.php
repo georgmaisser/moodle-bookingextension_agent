@@ -671,6 +671,12 @@ class runtime_context_block_builder {
             return;
         }
         usort($scored, static fn(array $a, array $b): int => [$b[0], $a[1]] <=> [$a[0], $b[1]]);
+        // Several courses fit the request equally well: no list (L48, AA-2 thread 16747). With "Winter School 2026" and
+        // "2027" in front of it, the constructor picked one of them silently in 4 of 20 A/B runs; without the list it
+        // hands the user's words to the course resolution, which asks with the candidates to choose from.
+        if (count($scored) > 1 && (int)$scored[1][0] === (int)$scored[0][0]) {
+            return;
+        }
         // Only matches close to the best one (live check 16568: "cours" inside "course" listed unrelated courses next to
         // "Biologie"); two courses the request really names keep similar lengths and both stay.
         $best = (int)$scored[0][0];

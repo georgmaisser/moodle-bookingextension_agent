@@ -117,6 +117,32 @@ final class course_names_context_test extends \advanced_testcase {
     }
 
     /**
+     * Several courses that fit the request equally are not listed (baseline L48, AA-2 thread 16747): the list made the
+     * constructor pick one of them - A/B at the recorded call with the live planner action: 4/20 "Winter School 2026"
+     * picked silently, 5/20 asked without the course choices; without the list 19/20 hand "Winter School" to the course
+     * resolution, which asks with both courses to choose from. Controls without the list: ACS-1 20/20, DUC-2 19/20,
+     * UQ-1 19/20 (with it 16/20).
+     */
+    public function test_equally_matching_courses_are_not_listed(): void {
+        $this->setAdminUser();
+        $this->getDataGenerator()->create_course(['fullname' => 'Winter School 2026']);
+        $this->getDataGenerator()->create_course(['fullname' => 'Winter School 2027']);
+        $block = $this->construction_block(
+            (int)get_admin()->id,
+            'Drop a discussion board into the Winter School so participants can introduce themselves.',
+            'course.add_activity'
+        );
+        $this->assertStringNotContainsString('COURSE NAMES', $block, 'two courses fit equally: the list would only invite a guess');
+
+        $block = $this->construction_block(
+            (int)get_admin()->id,
+            'Fabrique un quiz sur la photosynthèse dans le cours de biologie.',
+            'course.add_quiz'
+        );
+        $this->assertStringContainsString('- Biologie', $block, 'one course ahead of the rest is still listed');
+    }
+
+    /**
      * Only skills that target a course get the block; no matching word, no block.
      */
     public function test_no_block_without_a_course_skill_or_a_match(): void {
