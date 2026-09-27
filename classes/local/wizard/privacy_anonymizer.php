@@ -125,6 +125,22 @@ class privacy_anonymizer {
      */
     private const EMAIL_SUBPATTERN = '[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}';
 
+    /**
+     * @var string A name may start here: the text start, whitespace, an opening bracket or quote, or a URL segment
+     * delimiter. Anything else before it (a dot, "@", "_", a letter) makes the name part of a larger token - a host
+     * name, an address, an identifier (L45 UA-3, thread 14951: "example.org" with a user whose last name is "org").
+     * Structure only, no word list.
+     */
+    private const NAME_START_PATTERN = '/(?<![^\s(\[{"\'\x{00AB}\x{201E}\x{201C}\x{201A}\x{2018}\x{2039}\/=?&#])\G/u';
+
+    /**
+     * @var string A name may end here: the text end, whitespace, punctuation, a closing bracket or quote, a URL
+     * segment delimiter, or a dot that ends the sentence (followed by whitespace, a closing quote or bracket, or the
+     * end). A dot followed by a letter or digit continues a host or file name.
+     */
+    private const NAME_END_PATTERN = '/\G(?=$|[\s,;:!?)\]}"\'\x{00BB}\x{201C}\x{201D}\x{2019}\x{2018}\x{203A}\x{2026}\/&=#]'
+        . '|\.(?:$|[\s"\'\x{00BB}\x{201C}\x{201D}\x{2019})\]]))/u';
+
     /** @var conversation_store */
     private conversation_store $store;
 
@@ -469,7 +485,32 @@ class privacy_anonymizer {
         foreach ($needles as $candidate => $token) {
             $pattern = '/(?<![\p{L}\p{N}_])' . preg_quote($candidate, '/') . '(?![\p{L}\p{N}_])(?:\s*'
                 . preg_quote(self::DEMASK_MARKER, '/') . ')?/iu';
-            $replaced = preg_replace($pattern, $token, $message);
+            if (!preg_match($pattern, $message)) {
+                continue;
+            }
+            // L45 UA-3: a known name inside a URL, host name or address stays; an address itself is replaced whole.
+            $isaddress = strpos($candidate, '@') !== false;
+            $spans = $isaddress ? [] : $this->find_protected_spans($message);
+            $replaced = preg_replace_callback(
+                $pattern,
+                function (array $m) use ($message, $spans, $isaddress, $candidate, $token): string {
+                    $start = (int)$m[0][1];
+                    if (
+                        !$isaddress
+                        && (
+                            $this->offset_overlaps_protected_span($start, $spans)
+                            || !$this->stands_alone($message, $start, $start + strlen($candidate))
+                        )
+                    ) {
+                        return (string)$m[0][0];
+                    }
+                    return $token;
+                },
+                $message,
+                -1,
+                $count,
+                PREG_OFFSET_CAPTURE
+            );
             if (is_string($replaced)) {
                 $message = $replaced;
             }
@@ -918,10 +959,7 @@ class privacy_anonymizer {
         // "core.ANON_USER_n_lastname" in prompts/history, so the planner emitted a
         // non-registered skill. Standalone prose occurrences of such names stay
         // anonymizable — only the code-token span is exempt.
-        $protectedspans = $this->merge_protected_spans(array_merge(
-            $this->find_email_spans($message),
-            $this->find_code_token_spans($message)
-        ));
+        $protectedspans = $this->find_protected_spans($message);
 
         if (empty($nameindex)) {
             return [$message, 0];
@@ -951,6 +989,7 @@ class privacy_anonymizer {
             if (
                 $this->offset_overlaps_protected_span($firststart, $protectedspans)
                 || $this->offset_overlaps_protected_span($secondstart, $protectedspans)
+                || !$this->stands_alone($message, $firststart, $secondstart + strlen((string)$words[$i + 1][0]))
             ) {
                 continue;
             }
@@ -1021,7 +1060,10 @@ class privacy_anonymizer {
 
             $tokenvalue = (string)$entry[0];
             $tokenstart = (int)$entry[1];
-            if ($this->offset_overlaps_protected_span($tokenstart, $protectedspans)) {
+            if (
+                $this->offset_overlaps_protected_span($tokenstart, $protectedspans)
+                || !$this->stands_alone($message, $tokenstart, $tokenstart + strlen($tokenvalue))
+            ) {
                 continue;
             }
 
@@ -1084,6 +1126,61 @@ class privacy_anonymizer {
     }
 
     /**
+     * Every span in which a name is never masked, ordered and merged: email addresses, URLs (scheme and host - the path
+     * and the query stay subject to the standalone rule), bare host and file names, and code tokens.
+     *
+     * One source for the LLM path and the storage path, so their protection cannot drift apart (L45 UA-3).
+     *
+     * @param string $message
+     * @return array[]
+     */
+    private function find_protected_spans(string $message): array {
+        return $this->merge_protected_spans(array_merge(
+            $this->find_email_spans($message),
+            $this->find_url_host_spans($message),
+            $this->find_code_token_spans($message)
+        ));
+    }
+
+    /**
+     * Find byte-offset spans of URL hosts and bare host or file names.
+     *
+     * A URL is protected from its start to the end of its host ("https://www.example.org", "www.example.org"); a bare
+     * name with at least one dot and a letter-only last label ("example.org", "bericht.org.pdf") as a whole.
+     *
+     * @param string $message
+     * @return array[]
+     */
+    private function find_url_host_spans(string $message): array {
+        $spans = [];
+        $patterns = [
+            '~(?:\b[a-z][a-z0-9+.\-]*://|\bwww\.)[^\s/?#<>"\'\x{00AB}\x{00BB}]+~iu',
+            '~(?<![\p{L}\p{N}@_\-.])(?:[\p{L}\p{N}](?:[\p{L}\p{N}\-]*[\p{L}\p{N}])?\.)+\p{L}{2,}(?![\p{L}\p{N}\-])~u',
+        ];
+        foreach ($patterns as $pattern) {
+            $matches = [];
+            preg_match_all($pattern, $message, $matches, PREG_OFFSET_CAPTURE);
+            foreach ((array)($matches[0] ?? []) as $match) {
+                $spans[] = ['start' => (int)$match[1], 'end' => (int)$match[1] + strlen((string)$match[0])];
+            }
+        }
+        return $spans;
+    }
+
+    /**
+     * Whether the text between two byte offsets stands alone as a word (see NAME_START_PATTERN, NAME_END_PATTERN).
+     *
+     * @param string $message
+     * @param int $start Byte offset of the first character.
+     * @param int $end Byte offset after the last character.
+     * @return bool
+     */
+    private function stands_alone(string $message, int $start, int $end): bool {
+        return preg_match(self::NAME_START_PATTERN, $message, $unused, 0, $start) === 1
+            && preg_match(self::NAME_END_PATTERN, $message, $unused, 0, $end) === 1;
+    }
+
+    /**
      * Find byte-offset spans of email addresses in message text.
      *
      * @param string $message
@@ -1135,7 +1232,7 @@ class privacy_anonymizer {
 
         $patterns = [
             // Namespaced skill names and trigger ids: wizard.forget, wizard.forget_request.
-            '/\b[a-z][a-z0-9_]+\.[a-z][a-z0-9_]+\b/',
+            '/\b[a-z][a-z0-9_]+(?:\.[a-z][a-z0-9_]+)+\b/',
             // JSON object keys in serialized payloads: "forget": true.
             '/"[a-z][a-z0-9_]*"\s*:/',
             // Moodle capability tokens: mod/booking:addoption, moodle/course:manageactivities. Without this

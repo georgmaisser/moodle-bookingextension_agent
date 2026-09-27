@@ -81,13 +81,14 @@ final class privacy_anonymizer_url_boundary_test extends \advanced_testcase {
      * URLs, host names and file names are never cut; a name as a whole path or query segment is still masked.
      */
     public function test_urls_host_names_and_file_names_stay_intact(): void {
-        foreach ([
+        $intact = [
             'https://www.federation-sportive.example.org',
             'see www.example.org/docs/page for details',
             'the host example.org answers',
             'mail.intern.example.org.at is reachable',
             'open bericht.org.pdf please',
-        ] as $text) {
+        ];
+        foreach ($intact as $text) {
             $sanitized = (string)$this->anonymizer->anonymize_value_for_llm($this->threadid, $text);
             $this->assertSame($text, $sanitized, $text);
         }
@@ -111,7 +112,7 @@ final class privacy_anonymizer_url_boundary_test extends \advanced_testcase {
      * A name that stands alone is masked in every position of a sentence.
      */
     public function test_a_standalone_name_is_masked_in_every_position(): void {
-        foreach ([
+        $standalone = [
             'Org, please check this.',
             'Please ask Org.',
             'Please ask Org. Then continue.',
@@ -122,7 +123,8 @@ final class privacy_anonymizer_url_boundary_test extends \advanced_testcase {
             'Org: done; Org! Org? Org;',
             'Anna/Org share the task.',
             'Geo Org asked for help.',
-        ] as $text) {
+        ];
+        foreach ($standalone as $text) {
             $sanitized = (string)$this->anonymizer->anonymize_value_for_llm($this->threadid, $text);
             $this->assertDoesNotMatchRegularExpression('/(?<![\p{L}_])Org(?![\p{L}_])/u', $sanitized, "$text -> $sanitized");
             $this->assertStringContainsString('ANON_USER_', $sanitized, $text);
