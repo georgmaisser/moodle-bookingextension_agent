@@ -219,9 +219,10 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
                 ],
                 'coursequery' => [
                     'type' => 'string',
-                    'description' => 'A DIFFERENT course, only when the user names one (their '
-                        . 'words); the system resolves it. Empty = '
-                        . 'the current course.',
+                    // L45 AQ-4 (thread 15013): "A DIFFERENT course, only when ..." put the exception first; the constructor left
+                    // the named "Apikultur-Kurs" out and the quiz went to the current course.
+                    'description' => 'The course the user names for the quiz, in their words; the system resolves it. '
+                        . 'Leave it empty only when no course is named: then the current course.',
                     'required' => false,
                 ],
                 'courseid' => [
