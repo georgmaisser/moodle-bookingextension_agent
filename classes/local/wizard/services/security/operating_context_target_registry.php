@@ -142,6 +142,14 @@ class operating_context_target_registry {
                 fn(string $token, int $limit): array => $this->course_candidates($token, $limit)
             );
         }
+        if (empty($candidates)) {
+            // A compound request word ("Brandschutzkurs", AQ-1 L49) that a course's name word opens - the comparison the
+            // constructor's course-names block makes; the resolver must find what the block showed (wave 35).
+            $candidates = \bookingextension_agent\local\wizard\services\target_query_normalizer::narrow_by_stems(
+                $query,
+                fn(string $prefix, int $limit): array => $this->course_candidates($prefix, $limit)
+            );
+        }
 
         if (empty($candidates)) {
             return context_target_resolution::not_found();

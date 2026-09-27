@@ -138,6 +138,42 @@ final class context_resolver_operating_context_test extends advanced_testcase {
         $this->assertSame(context_target_resolution::STATUS_AMBIGUOUS, $ambiguous->status(), 'two courses share the token');
     }
 
+    /**
+     * Wave 35 (AQ-1, L49 thread 17770 and N43a 17382): the constructor writes the user's compound "Brandschutzkurs" into
+     * the course field in 2 of 20 runs, although the course-names block listed "Brandschutz im Betrieb". One token, so
+     * the token narrowing above finds nothing. A course whose name word is the stem of a request word (the comparison
+     * the course-names block makes, five letters or more) is the course; two such courses stay ambiguous, a short word
+     * ("Kurs") names nothing.
+     */
+    public function test_a_compound_request_word_resolves_by_the_course_name_stem(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $target = $this->getDataGenerator()->create_course(['fullname' => 'Brandschutz im Betrieb']);
+        $this->getDataGenerator()->create_course(['fullname' => 'Biologie']);
+        $registry = new operating_context_target_registry();
+
+        $resolution = $registry->resolve(target_selector::for_course(null, 'Brandschutzkurs'));
+        $this->assertTrue($resolution->is_resolved(), $resolution->status());
+        $this->assertSame((int)context_course::instance($target->id)->id, (int)$resolution->context()->id);
+
+        $this->assertSame(
+            context_target_resolution::STATUS_NOT_FOUND,
+            $registry->resolve(target_selector::for_course(null, 'Kurs'))->status(),
+            'a word shorter than the stem names no course'
+        );
+        $this->assertSame(
+            context_target_resolution::STATUS_NOT_FOUND,
+            $registry->resolve(target_selector::for_course(null, 'Photosynthese'))->status(),
+            'a word no course name word opens names no course'
+        );
+
+        $this->getDataGenerator()->create_course(['fullname' => 'Brandschutz Aufbau']);
+        $ambiguous = $registry->resolve(target_selector::for_course(null, 'Brandschutzkurs'));
+        $this->assertSame(context_target_resolution::STATUS_AMBIGUOUS, $ambiguous->status(), 'two courses share the stem');
+        $this->assertCount(2, $ambiguous->candidates());
+    }
+
     public function test_ambiguous_course_name_lists_candidates(): void {
         $this->resetAfterTest();
         $this->setAdminUser();

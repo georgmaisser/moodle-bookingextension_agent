@@ -61,6 +61,53 @@ final class target_query_normalizer {
         return (string)$key;
     }
 
+    /** @var int Shortest word compared as a stem (letters and digits) - the course-names block uses the same length. */
+    public const MIN_STEM = 5;
+
+    /**
+     * Narrow a query to the candidates whose name carries a stem of a request word, or a request word as stem (wave 35).
+     *
+     * "Brandschutzkurs" (AQ-1, L49 thread 17770) is one token: narrow_by_tokens() has nothing to split, and the course
+     * "Brandschutz im Betrieb" stays unfound although its word "Brandschutz" opens the request word. A name word of
+     * MIN_STEM letters or more that a request word begins with - or a request word that a name word begins with - is
+     * the same comparison the constructor's course-names block makes; both sides see the same courses. Only the
+     * candidates with the longest common stem count: the request "Excel-Kurs" names the "Excel-Kurs", not every course
+     * with a five-letter word in common. No word is known here, the stored names decide.
+     *
+     * @param string $query The whole query as the planner sent it.
+     * @param callable $search fn(string $prefix, int $limit): array of candidates carrying 'name' and 'id'.
+     * @param int $limit Candidates per lookup.
+     * @return array The candidates sharing the longest stem (one = resolved).
+     */
+    public static function narrow_by_stems(string $query, callable $search, int $limit = 25): array {
+        preg_match_all('/[\p{L}\p{N}]{' . self::MIN_STEM . ',}/u', \core_text::strtolower($query), $found);
+        $words = array_values(array_unique($found[0] ?? []));
+        $scored = [];
+        foreach ($words as $word) {
+            foreach ((array)$search(\core_text::substr($word, 0, self::MIN_STEM), $limit) as $candidate) {
+                $id = (int)($candidate['id'] ?? 0);
+                $name = \core_text::strtolower((string)($candidate['name'] ?? ''));
+                preg_match_all('/[\p{L}\p{N}]{' . self::MIN_STEM . ',}/u', $name, $cf);
+                foreach ((array)($cf[0] ?? []) as $nameword) {
+                    if ($id > 0 && (str_starts_with($word, $nameword) || str_starts_with($nameword, $word))) {
+                        $score = min(\core_text::strlen($word), \core_text::strlen($nameword));
+                        if ($score > (int)($scored[$id]['score'] ?? 0)) {
+                            $scored[$id] = ['score' => $score, 'candidate' => $candidate];
+                        }
+                    }
+                }
+            }
+        }
+        if (empty($scored)) {
+            return [];
+        }
+        $best = max(array_column($scored, 'score'));
+        return array_values(array_map(
+            static fn(array $row): array => $row['candidate'],
+            array_filter($scored, static fn(array $row): bool => $row['score'] === $best)
+        ));
+    }
+
     /**
      * Narrow a person query to one user by its name tokens when the whole query found nobody (wave 26).
      *
