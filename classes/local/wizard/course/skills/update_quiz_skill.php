@@ -560,7 +560,25 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
                 }
                 return $this->clarify(implode("\n", $lines), 'UPDATE_QUIZ_AMBIGUOUS', $options);
             }
-            return $this->clarify('I could not find a quiz called "' . $query . '".', 'UPDATE_QUIZ_NOT_FOUND');
+            // Wave 37 (UQ-3, L49 thread 17795): "le quiz existant" names no quiz, and the turn asked for the exact name
+            // although the course holds the quizzes to choose from. Choices, not a bare miss (wave 32 rule for
+            // options): the quizzes of this course are listed, the model picks the cmid - nothing is guessed here.
+            $candidates = [];
+            foreach ($modinfo->get_instances_of('quiz') as $cm) {
+                if ($cm->uservisible) {
+                    $candidates[] = ['id' => (int)$cm->id, 'label' => (string)$cm->name];
+                }
+            }
+            if (empty($candidates)) {
+                return $this->clarify('I could not find a quiz called "' . $query . '".', 'UPDATE_QUIZ_NOT_FOUND');
+            }
+            return $this->invalid([[
+                'severity' => 'needs_clarification',
+                'message' => 'I could not find a quiz called "' . $query . '". The quizzes of this course are listed.',
+                'code' => 'UPDATE_QUIZ_NOT_FOUND',
+                'field' => 'cmid',
+                'candidates' => $candidates,
+            ]]);
         }
 
         if ($context && (int)$context->contextlevel === CONTEXT_MODULE) {
