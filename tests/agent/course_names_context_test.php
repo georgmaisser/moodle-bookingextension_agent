@@ -58,7 +58,8 @@ final class course_names_context_test extends \advanced_testcase {
         parent::setUp();
         $this->resetAfterTest();
         $this->store = new conversation_store();
-        foreach (['Biologie', 'Brandschutz im Betrieb', 'Buchdruck (Kursrohling)', 'Excel-Kurs'] as $name) {
+        // "Agent Smoke Course" as on the VM: live check 16568 listed it for "cours de biologie" ("cours" inside "course").
+        foreach (['Biologie', 'Brandschutz im Betrieb', 'Buchdruck (Kursrohling)', 'Excel-Kurs', 'Agent Smoke Course'] as $name) {
             $this->getDataGenerator()->create_course(['fullname' => $name]);
         }
     }
@@ -103,6 +104,7 @@ final class course_names_context_test extends \advanced_testcase {
         $this->assertStringContainsString('COURSE NAMES matching words of the request', $block);
         $this->assertStringContainsString('- Biologie', $block);
         $this->assertStringNotContainsString('Excel-Kurs', $block);
+        $this->assertStringNotContainsString('Agent Smoke Course', $block, 'a weaker match than the named course is noise');
 
         $block = $this->construction_block(
             (int)get_admin()->id,
