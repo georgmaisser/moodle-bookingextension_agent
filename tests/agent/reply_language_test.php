@@ -150,6 +150,29 @@ final class reply_language_test extends \advanced_testcase {
     }
 
     /**
+     * The shape the engine really delivers (thread 15788, WRITERUN4): the selection state keeps the selector's parsed
+     * output under phase_output, without a top-level user_lang. The first version read only the top level, so no
+     * synchronizer prompt of L46 carried the line.
+     */
+    public function test_the_selector_language_is_read_from_the_phase_output(): void {
+        $this->turn('Take the handout PDF sitting in Brandschutz im Betrieb and turn it into a dozen bank questions.');
+        $result = [
+            'response_type' => 'clarification',
+            'lang' => 'de',
+            'planner_result' => [
+                'selection' => [
+                    'phase' => 'selection',
+                    'response_type' => 'skill_call',
+                    'selected_skill' => 'question.generate_questions',
+                    'phase_output' => ['response_type' => 'skill_call', 'lang' => 'en', 'user_lang' => 'en'],
+                ],
+                'parameter_construction' => ['user_lang' => 'de'],
+            ],
+        ];
+        $this->assertSame('en', $this->policy->resolve_reply_language($this->store, $this->threadid, $result));
+    }
+
+    /**
      * Non-success path: no usable code and no thread language - no line, the prompt is as before.
      */
     public function test_without_a_language_there_is_no_line(): void {
