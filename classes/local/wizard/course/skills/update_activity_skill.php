@@ -135,8 +135,10 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
                 . 'for "rename the page to X", "hide the forum", "change the activity\'s URL", "hide the quiz", "move the label to '
                 . 'section 2", "move the page one section down". Only the fields you give are changed.',
             'is' => 'Changing an activity that already exists: name, description, visibility, section, a module setting.',
-            'not' => 'Creating a new activity (add_activity); the settings of a booking activity '
-                . '(mod_booking.configure_booking_instance).',
+            // UQ-2 (L47 thread 16040): a quiz request came here, and this skill cannot edit quizzes. A/B at the recorded
+            // selector call: update_quiz 18 -> 20 of 20 with the mutual fence, control UA-2 unchanged 20/20.
+            'not' => 'Creating a new activity (add_activity); a quiz or test (course.update_quiz); the settings of a '
+                . 'booking activity (mod_booking.configure_booking_instance).',
             'readonly' => false,
             'example_utterances' => [
                 'rename the Welcome page to Course intro',

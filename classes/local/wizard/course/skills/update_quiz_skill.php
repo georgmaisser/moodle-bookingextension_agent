@@ -120,7 +120,8 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
                 . 'category). Use for "add 5 '
                 . 'questions to Quiz 3", "rename the quiz", "add questions to the quiz", "hide the quiz".',
             'is' => 'Changing a quiz that already exists.',
-            'not' => 'Creating a new quiz (add_quiz); bank questions without a quiz (question.generate_questions).',
+            'not' => 'Creating a new quiz (add_quiz); bank questions without a quiz (question.generate_questions); other '
+                . 'activities and resources (course.update_activity).',
             'readonly' => false,
             'example_utterances' => [
                 'add 5 questions to the existing quiz',
