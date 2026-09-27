@@ -23,6 +23,8 @@ use context_module;
 use bookingextension_agent\local\wizard\orchestrator;
 use bookingextension_agent\local\wizard\conversation_store;
 use bookingextension_agent\local\wizard\privacy_anonymizer;
+use core_text;
+use bookingextension_agent\local\wizard\skill_registry_factory;
 use bookingextension_agent\local\wizard\dto\agent_context;
 
 /**
@@ -245,6 +247,10 @@ class runtime_context_block_builder {
         // guidance and only ever reached the construction phase.
         // Anonymized tokens only — the clear-text identity never reaches the LLM.
         if ($isplannerphase) {
+            // Same place as in the A/B (thread 15205/15207/15791): after the catalog, before current_user.
+            if ($phase === orchestrator::PHASE_PARAMETER_CONSTRUCTION) {
+                $this->append_course_names_section($statelines, $threadid, $skillcatalog);
+            }
             $this->append_current_user_section($statelines, $privacy, $threadid);
         }
 
@@ -574,6 +580,99 @@ class runtime_context_block_builder {
             if ($memory !== '') {
                 $lines[] = '- "' . $memory . '"';
             }
+        }
+    }
+
+    /** @var int Shortest word stem compared against course names (letters and digits). */
+    private const COURSE_NAME_MIN_STEM = 5;
+
+    /** @var int Most course names listed. */
+    private const COURSE_NAME_LIMIT = 10;
+
+    /**
+     * Append the names of the courses the request's words point to - construction of a course skill only.
+     *
+     * Welle 33/34 (AQ-1, AQ-3, SCC-1): a course named by its subject ("vom Brandschutzkurs") never reached the course
+     * field, the constructor read it as the content's topic. A/B: with the matching course names as a fact 20/20 instead
+     * of 2/20. The list is engine state: courses the user can access whose name shares a word stem (at least
+     * COURSE_NAME_MIN_STEM letters or digits, in either direction) with the user's latest message - a comparison against
+     * real course names like the resolvers, no word list. Only when the one selected skill targets a course
+     * (get_target_context_level(), a declarative hook). Every name passes the anonymizer.
+     *
+     * @param string[] $lines
+     * @param int $threadid
+     * @param array $skillcatalog The construction phase's catalog: the selected skill.
+     * @return void
+     */
+    private function append_course_names_section(array &$lines, int $threadid, array $skillcatalog): void {
+        global $DB;
+        if (count($skillcatalog) !== 1) {
+            return;
+        }
+        $entry = reset($skillcatalog);
+        $skill = skill_registry_factory::get_default()->get_skill((string)($entry['skill'] ?? ''));
+        $targetscourse = $skill && method_exists($skill, 'get_target_context_level')
+            && (int)$skill->get_target_context_level() === CONTEXT_COURSE;
+        if (!$targetscourse) {
+            return;
+        }
+        $thread = $this->store->get_thread($threadid);
+        $userid = (int)($thread->userid ?? 0);
+        $message = '';
+        $messages = $this->store->get_messages($threadid);
+        usort($messages, static fn($a, $b): int => (int)$a->id <=> (int)$b->id);
+        foreach ($messages as $record) {
+            if ((string)($record->role ?? '') === 'user') {
+                $message = (string)$record->content;
+            }
+        }
+        preg_match_all('/[\p{L}\p{N}]{' . self::COURSE_NAME_MIN_STEM . ',}/u', core_text::strtolower($message), $found);
+        $stems = array_values(array_unique($found[0] ?? []));
+        if ($userid <= 0 || empty($stems)) {
+            return;
+        }
+        // Candidates: a course name containing the first letters of a request word (covers both directions).
+        $conditions = [];
+        $params = [];
+        foreach ($stems as $i => $stem) {
+            $conditions[] = $DB->sql_like('fullname', ':s' . $i, false);
+            $params['s' . $i] = '%' . $DB->sql_like_escape(core_text::substr($stem, 0, self::COURSE_NAME_MIN_STEM)) . '%';
+        }
+        $candidates = $DB->get_records_select(
+            'course',
+            'id <> :site AND (' . implode(' OR ', $conditions) . ')',
+            array_merge($params, ['site' => SITEID]),
+            'fullname',
+            '*',
+            0,
+            200
+        );
+        $user = \core_user::get_user($userid);
+        $scored = [];
+        foreach ($candidates as $course) {
+            $pattern = '/[\p{L}\p{N}]{' . self::COURSE_NAME_MIN_STEM . ',}/u';
+            preg_match_all($pattern, core_text::strtolower($course->fullname), $cf);
+            $score = 0;
+            foreach ((array)($cf[0] ?? []) as $coursestem) {
+                foreach ($stems as $stem) {
+                    if (str_contains($stem, $coursestem) || str_contains($coursestem, $stem)) {
+                        $score = max($score, min(core_text::strlen($stem), core_text::strlen($coursestem)));
+                    }
+                }
+            }
+            if ($score > 0 && $user && can_access_course($course, $user, '', true)) {
+                $scored[] = [$score, (string)$course->fullname];
+            }
+        }
+        if (empty($scored)) {
+            return;
+        }
+        usort($scored, static fn(array $a, array $b): int => [$b[0], $a[1]] <=> [$a[0], $b[1]]);
+        $privacy = new privacy_anonymizer($this->store);
+        $lines[] = '';
+        $lines[] = 'COURSE NAMES matching words of the request (courses the user can access):';
+        foreach (array_slice($scored, 0, self::COURSE_NAME_LIMIT) as [, $name]) {
+            $lines[] = '- ' . (string)$privacy->anonymize_value_for_llm($threadid, format_string($name));
         }
     }
 
