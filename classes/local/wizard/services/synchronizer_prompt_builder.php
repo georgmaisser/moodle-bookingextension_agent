@@ -124,6 +124,7 @@ class synchronizer_prompt_builder {
      * @param string[] $omittedfields Supported detail fields a read skill did NOT look up this
      *                                turn (engine-collected from the structured result rows).
      * @param string[] $activetokens Anonymizer tokens active in this thread (engine state).
+     * @param string $replylanguage ISO code of the conversation's reply language (language_policy_service), '' = none.
      * @return string
      */
     public function build_prompt(
@@ -134,7 +135,8 @@ class synchronizer_prompt_builder {
         string $runtimestate = '',
         string $continuation = self::CONTINUATION_NONE,
         array $omittedfields = [],
-        array $activetokens = []
+        array $activetokens = [],
+        string $replylanguage = ''
     ): string {
         $parts = ["[SYSTEM]\n{$systemprompt}"];
 
@@ -154,6 +156,13 @@ class synchronizer_prompt_builder {
         $turnstate = 'TURN STATE: this reply ' . ($continuation === self::CONTINUATION_NONE
             ? 'reports the result.'
             : 'asks the user a question.');
+        // L45 (SCC-2, GQ-3, URT-3; George 2026-09-27): memory, attachments or a relayed question in another language pulled
+        // the reply away from the user's. The conversation's language is stated as a fact of this turn (selector's
+        // user_lang with thread gravity, language_policy_service); rule 7 of the template stays as it is.
+        $languageline = (new language_policy_service())->reply_language_line($replylanguage);
+        if ($languageline !== '') {
+            $turnstate .= "\n" . $languageline;
+        }
         $parts[] = "[SYSTEM_RUNTIME_STATE]\n" . ($runtimestate !== '' ? $runtimestate . "\n" : '') . $turnstate;
 
         // Observations come AFTER the state ledgers, closest to [ASSISTANT]: the template's rule that the

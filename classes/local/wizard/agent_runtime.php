@@ -786,6 +786,9 @@ class agent_runtime {
         // thread's token map, never from text inspection.
         $activetokens = (new privacy_anonymizer($this->store))->get_active_token_names($threadid);
 
+        // The conversation's reply language (selector's user_lang with thread gravity) - engine state, no detection.
+        $replylanguage = $this->languagepolicy->resolve_reply_language($this->store, $threadid, $result);
+
         try {
             $syncresult = $this->synchronizerroutingsvc->call_synchronizer_step(
                 $this->orchestrator,
@@ -795,7 +798,8 @@ class agent_runtime {
                 $observations,
                 $continuation,
                 $omittedfields,
-                $activetokens
+                $activetokens,
+                $replylanguage
             );
         } catch (\Throwable $e) {
             // Synchronizer polish is best-effort; return the unpolished result on failure.

@@ -16,13 +16,16 @@
 
 namespace bookingextension_agent\local\wizard\services;
 
+use bookingextension_agent\local\wizard\conversation_store;
 use core_text;
 
 /**
  * Central language authority for runtime/decision framework responses.
  *
  * The turn language is determined by the selector LLM call (it emits user_lang, derived from the
- * latest user message) and carried in the planner result — it is NOT persisted as thread metadata.
+ * latest user message) and carried in the planner result. The REPLY language of the synchronizer additionally has
+ * gravity (George 2026-09-27): it is kept per thread, an answer to a waiting question keeps it and only a new request
+ * may change it - see resolve_reply_language().
  *
  * Policy order:
  * 1) selector-emitted user_lang (from the latest user request)
@@ -74,6 +77,113 @@ class language_policy_service {
         }
 
         return self::TECHNICAL_FALLBACK_LANG;
+    }
+
+    /** @var string Thread metadata key of the conversation's reply language. */
+    public const THREAD_REPLY_LANGUAGE_KEY = 'reply_language';
+
+    /** @var string[] Response types after which the user's next message answers something waiting. */
+    private const WAITING_RESPONSE_TYPES = ['clarification', 'confirmation_request'];
+
+    /**
+     * The selector's language of the user's message: an ISO code Moodle knows, or ''.
+     *
+     * Only the selection phase counts: the constructor's user_lang is not a judgement of the user's message (L45 URT-3:
+     * selector fr, constructor de).
+     *
+     * @param array $result Planner result.
+     * @return string
+     */
+    public function selector_language(array $result): string {
+        $selection = (array)($result['planner_result']['selection'] ?? []);
+        return $this->known_language((string)($selection['user_lang'] ?? $selection['lang'] ?? ''));
+    }
+
+    /**
+     * The language the synchronizer writes this turn's reply in, or '' when nothing is known.
+     *
+     * The first request sets the conversation's language. A message that answers something waiting - the previous reply
+     * asked a question or a confirmation - keeps it, whatever the selector says about a short "Yes". Any other message
+     * is a new request: the selector's language applies and becomes the conversation's language. Engine state only.
+     *
+     * @param conversation_store $store
+     * @param int $threadid
+     * @param array $result Planner result of this turn.
+     * @return string ISO 639-1 code or ''.
+     */
+    public function resolve_reply_language(conversation_store $store, int $threadid, array $result): string {
+        $threadlanguage = $this->known_language((string)$store->get_thread_metadata_value(
+            $threadid,
+            self::THREAD_REPLY_LANGUAGE_KEY
+        ));
+        if ($threadlanguage !== '' && $this->message_answers_waiting($store, $threadid)) {
+            return $threadlanguage;
+        }
+        $selector = $this->selector_language($result);
+        if ($selector === '') {
+            return $threadlanguage;
+        }
+        if ($selector !== $threadlanguage) {
+            $store->set_thread_metadata_value($threadid, self::THREAD_REPLY_LANGUAGE_KEY, $selector);
+        }
+        return $selector;
+    }
+
+    /**
+     * The line the synchronizer's runtime state carries for a reply language, or '' for none.
+     *
+     * @param string $code ISO 639-1 code.
+     * @return string
+     */
+    public function reply_language_line(string $code): string {
+        $code = $this->known_language($code);
+        if ($code === '') {
+            return '';
+        }
+        $names = get_string_manager()->get_list_of_languages('en');
+        return 'REPLY LANGUAGE: ' . $code . ' (' . ($names[$code] ?? $code) . '), the language of this conversation.';
+    }
+
+    /**
+     * Whether the user's latest message answers a question or confirmation of the previous reply.
+     *
+     * @param conversation_store $store
+     * @param int $threadid
+     * @return bool
+     */
+    private function message_answers_waiting(conversation_store $store, int $threadid): bool {
+        $messages = $store->get_messages($threadid);
+        usort($messages, static fn($a, $b): int => (int)$a->id <=> (int)$b->id);
+        $seenuser = false;
+        for ($i = count($messages) - 1; $i >= 0; $i--) {
+            $role = (string)($messages[$i]->role ?? '');
+            if (!$seenuser) {
+                $seenuser = $role === 'user';
+                continue;
+            }
+            if ($role === 'assistant') {
+                $structured = json_decode((string)($messages[$i]->structuredjson ?? ''), true);
+                return in_array((string)($structured['response_type'] ?? ''), self::WAITING_RESPONSE_TYPES, true);
+            }
+            if ($role === 'user') {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * An ISO 639-1 code Moodle lists as a language, or ''.
+     *
+     * @param string $value
+     * @return string
+     */
+    private function known_language(string $value): string {
+        $code = $this->normalize_iso_language($value);
+        if ($code === '') {
+            return '';
+        }
+        return array_key_exists($code, get_string_manager()->get_list_of_languages('en')) ? $code : '';
     }
 
     /**

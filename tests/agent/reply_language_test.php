@@ -74,7 +74,10 @@ final class reply_language_test extends \advanced_testcase {
         return [
             'response_type' => 'clarification',
             'user_lang' => $constructor,
-            'planner_result' => ['selection' => ['user_lang' => $selector], 'parameter_construction' => ['user_lang' => $constructor]],
+            'planner_result' => [
+                'selection' => ['user_lang' => $selector],
+                'parameter_construction' => ['user_lang' => $constructor],
+            ],
         ];
     }
 
@@ -108,9 +111,11 @@ final class reply_language_test extends \advanced_testcase {
     public function test_an_answer_keeps_the_conversation_language(): void {
         foreach (['clarification', 'confirmation_request'] as $waiting) {
             $this->resetAfterTest();
-            $this->threadid = (int)$this->store->create_fresh_thread((int)get_admin()->id, (int)\context_system::instance()->id)->id;
+            $systemcontextid = (int)\context_system::instance()->id;
+            $this->threadid = (int)$this->store->create_fresh_thread((int)get_admin()->id, $systemcontextid)->id;
             $this->turn('Leg bitte eine neue Option an.');
-            $this->assertSame('de', $this->policy->resolve_reply_language($this->store, $this->threadid, $this->planner_result('de')));
+            $first = $this->policy->resolve_reply_language($this->store, $this->threadid, $this->planner_result('de'));
+            $this->assertSame('de', $first);
             $this->store->add_message($this->threadid, 'assistant', 'Frage', ['response_type' => $waiting]);
             $this->turn('Yes');
             $this->assertSame(
@@ -140,7 +145,8 @@ final class reply_language_test extends \advanced_testcase {
      */
     public function test_the_constructor_language_does_not_count(): void {
         $this->turn('Modifie le texte du message de la règle de rappel existante.');
-        $this->assertSame('fr', $this->policy->resolve_reply_language($this->store, $this->threadid, $this->planner_result('fr', 'de')));
+        $lang = $this->policy->resolve_reply_language($this->store, $this->threadid, $this->planner_result('fr', 'de'));
+        $this->assertSame('fr', $lang);
     }
 
     /**

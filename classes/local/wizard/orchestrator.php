@@ -345,6 +345,8 @@ class orchestrator {
      * @param string[] $observations
      * @param string $continuation
      * @param string[] $omittedfields Detail fields read skills did not look up this turn.
+     * @param string[] $activetokens Anonymizer tokens active in this thread.
+     * @param string $replylanguage ISO code of the conversation's reply language, '' = none.
      * @return array
      */
     public function process_synchronizer(
@@ -354,7 +356,8 @@ class orchestrator {
         array $observations = [],
         string $continuation = synchronizer_prompt_builder::CONTINUATION_NONE,
         array $omittedfields = [],
-        array $activetokens = []
+        array $activetokens = [],
+        string $replylanguage = ''
     ): array {
         $context = context::instance_by_id($contextid, MUST_EXIST);
         $manager = di::get(ai_manager::class);
@@ -408,7 +411,8 @@ class orchestrator {
             $runtimestate,
             $continuation,
             $omittedfields,
-            $activetokens
+            $activetokens,
+            $replylanguage
         );
 
         $llm = new llm_call_service($this->store);

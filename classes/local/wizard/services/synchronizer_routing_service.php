@@ -38,6 +38,8 @@ class synchronizer_routing_service {
      * @param array $observations
      * @param string $continuation Continuation marker (synchronizer_prompt_builder::CONTINUATION_*); default none.
      * @param string[] $omittedfields Detail fields read skills did not look up this turn.
+     * @param string[] $activetokens Anonymizer tokens active in this thread.
+     * @param string $replylanguage ISO code of the conversation's reply language, '' = none.
      * @return array
      */
     public function call_synchronizer_step(
@@ -48,7 +50,8 @@ class synchronizer_routing_service {
         array $observations,
         string $continuation = synchronizer_prompt_builder::CONTINUATION_NONE,
         array $omittedfields = [],
-        array $activetokens = []
+        array $activetokens = [],
+        string $replylanguage = ''
     ): array {
         return $orchestrator->process_synchronizer(
             $threadid,
@@ -57,7 +60,8 @@ class synchronizer_routing_service {
             $observations,
             $continuation,
             $omittedfields,
-            $activetokens
+            $activetokens,
+            $replylanguage
         );
     }
 }
