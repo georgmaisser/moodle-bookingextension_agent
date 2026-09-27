@@ -586,6 +586,9 @@ class runtime_context_block_builder {
     /** @var int Shortest word stem compared against course names (letters and digits). */
     private const COURSE_NAME_MIN_STEM = 5;
 
+    /** @var int A match may be this many letters shorter than the best one and still be listed. */
+    private const COURSE_NAME_SCORE_MARGIN = 2;
+
     /** @var int Most course names listed. */
     private const COURSE_NAME_LIMIT = 10;
 
@@ -668,6 +671,13 @@ class runtime_context_block_builder {
             return;
         }
         usort($scored, static fn(array $a, array $b): int => [$b[0], $a[1]] <=> [$a[0], $b[1]]);
+        // Only matches close to the best one (live check 16568: "cours" inside "course" listed unrelated courses next to
+        // "Biologie"); two courses the request really names keep similar lengths and both stay.
+        $best = (int)$scored[0][0];
+        $scored = array_values(array_filter(
+            $scored,
+            static fn(array $row): bool => (int)$row[0] >= $best - self::COURSE_NAME_SCORE_MARGIN
+        ));
         $privacy = new privacy_anonymizer($this->store);
         $lines[] = '';
         $lines[] = 'COURSE NAMES matching words of the request (courses the user can access):';
