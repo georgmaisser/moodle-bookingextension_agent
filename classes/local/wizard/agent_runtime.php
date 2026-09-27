@@ -557,6 +557,11 @@ class agent_runtime {
         }
         $result = $this->apply_finalization_strategy($threadid, $result, $state);
         $result = $this->enforce_final_response_contract($result, $threadid);
+        // The conversation's language is thread state of every turn, not only of turns the synchronizer answers: a turn
+        // that ends as a confirmation_request skips the synchronizer, and the reply after the click then had no
+        // language (W6 GQ-1, thread 17337: English request, German reply). Same resolution as the synchronizer's;
+        // repeating it in a synchronized turn changes nothing.
+        $this->languagepolicy->resolve_reply_language($this->store, $threadid, $result);
         $this->maintain_clarification_origin_task($threadid, $result);
         $this->messagepersistence->persist_assistant_message($threadid, $result);
         return $result;
