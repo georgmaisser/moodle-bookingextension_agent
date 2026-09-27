@@ -147,8 +147,10 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
                 ],
                 'name' => [
                     'type' => 'string',
-                    'description' => 'The name/title of the new activity as the user wants it shown in the course. '
-                        . 'For a label/text area this is optional (the text is the content).',
+                    // L45 AA-3 (thread 14947): "un lien vers le site de la fédération nationale" names what the link is, yet the
+                    // constructor asked for a name; the user's words for what the activity holds or points to are its name.
+                    'description' => 'The name shown in the course: the user\'s words for the activity or for what it '
+                        . 'holds or points to. Optional for a label/text area (the text is the content).',
                     'required' => false,
                 ],
                 'intro' => [
