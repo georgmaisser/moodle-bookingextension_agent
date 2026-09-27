@@ -118,6 +118,16 @@
             "text": "Create an offer \"Nähcafé\", the appointment is the day after next Tuesday morning, Mrs. ANON_USER_1_lastname should take care of it."
         },
         {
+            "id": "CRT-1",
+            "skill": "mod_booking.create_rule_from_template",
+            "text": "After each booking, a confirmation should automatically be sent out — set that up."
+        },
+        {
+            "id": "CRT-3",
+            "skill": "mod_booking.create_rule_from_template",
+            "text": "When someone cancels, trainers should receive an automatic message — set this up."
+        },
+        {
             "id": "CSB-2",
             "skill": "mod_booking.create_slotbooking_option",
             "text": "Our massage chair should be reservable weekdays 8–18 in half-hour chunks for the whole of next month."
@@ -141,6 +151,11 @@
             "id": "DAS-1",
             "skill": "local_taskflow.diagnose_assignment_status",
             "text": "Assignment 4033 says overdue although the course is complete — how come?"
+        },
+        {
+            "id": "DAS-2",
+            "skill": "local_taskflow.diagnose_assignment_status",
+            "text": "Why does it say 'extended\" und nicht „überfällig\"' for Mr. ANON_USER_1_lastname?"
         },
         {
             "id": "DAS-3",
@@ -231,6 +246,11 @@
             "id": "DP-4",
             "skill": "core.diagnose_permissions",
             "text": "Check for ANON_USER_1_lastname the Capability mod/booking:updatebooking in the course Excel — is there an override active?"
+        },
+        {
+            "id": "DUA-1",
+            "skill": "local_taskflow.diagnose_user_assignments",
+            "text": "The woman ANON_USER_1_lastname is in Facility, but the data protection training does not appear for her. Why?"
         },
         {
             "id": "DUA-2",
@@ -338,6 +358,11 @@
             "text": "Wipe everything you've ever stored about me, clean slate."
         },
         {
+            "id": "FOR-3",
+            "skill": "wizard.forget",
+            "text": "Forget my preference for morning slots, it's no longer relevant."
+        },
+        {
             "id": "FOR-4",
             "skill": "wizard.forget",
             "text": "You can delete the saved cost center."
@@ -401,6 +426,11 @@
             "id": "GRD-1",
             "skill": "local_taskflow.get_rule_details",
             "text": "What is \"Data Protection Training 2026\" genau aufgesetzt — Frist, Wiederholung, wer entscheidet über „nicht relevant\"?"
+        },
+        {
+            "id": "GRD-2",
+            "skill": "local_taskflow.get_rule_details",
+            "text": "For rule 2: which filters, which targets, which message templates are attached?"
         },
         {
             "id": "GRD-3",
@@ -563,9 +593,19 @@
             "text": "Is there a unit called \"Team Nord\"? How many people are in it?"
         },
         {
+            "id": "PM-1",
+            "skill": "local_taskflow.preview_message",
+            "text": "Show me the 7-day reminder as it would go out for assignment 4033 — without sending it."
+        },
+        {
             "id": "PM-3",
             "skill": "local_taskflow.preview_message",
             "text": "Render template 1 against assignment 4035 so I can check the placeholders actually resolve."
+        },
+        {
+            "id": "PM-4",
+            "skill": "local_taskflow.preview_message",
+            "text": "View only, don't send: the completion confirmation for assignment 4037."
         },
         {
             "id": "REM-1",
@@ -641,6 +681,11 @@
             "id": "SCA-3",
             "skill": "wizard.scaffold_skill",
             "text": "Generate me a skill skeleton for my local_salles plugin that will list free rooms."
+        },
+        {
+            "id": "SCA-4",
+            "skill": "wizard.scaffold_skill",
+            "text": "I need a template for my plugin local_anwesenheit for a new agent command \"Anwesenheit erfassen\"."
         },
         {
             "id": "SMT-1",
@@ -791,6 +836,11 @@
             "id": "TSA-3",
             "skill": "local_taskflow.search_assignments",
             "text": "Show me all paused assignments of the Facility service."
+        },
+        {
+            "id": "TSA-4",
+            "skill": "local_taskflow.search_assignments",
+            "text": "What trainings are due for my people in the next 14 days?"
         },
         {
             "id": "UO-2",
