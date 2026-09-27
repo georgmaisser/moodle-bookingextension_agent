@@ -19,6 +19,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wizard\services\security;
 
 use bookingextension_agent\local\wizard\dto\agent_context;
+use bookingextension_agent\local\wizard\dto\context_target_resolution;
 use bookingextension_agent\local\wizard\dto\target_selector;
 use bookingextension_agent\local\wizard\interfaces\skill_interface;
 
@@ -32,6 +33,9 @@ use bookingextension_agent\local\wizard\interfaces\skill_interface;
  *   - `supports_target_context(): bool`
  *   - `get_target_selector(array $input): ?target_selector`
  *   - `get_target_context_level(): int`  (optional; defaults to the skill's required context level)
+ *   - `decide_ambiguous_target(array $candidates, array $input, int $userid): ?\context`  (optional; when the named
+ *     target fits several candidates, the skill may pick the one its own input identifies - see
+ *     {@see self::decide_by_skill()})
  *
  * A skill that exposes none of these — i.e. every skill today — always operates in its **ambient**
  * context, so wiring this resolver into the pipeline is behaviour-preserving until a skill opts in.
@@ -84,7 +88,53 @@ class skill_operating_context_resolver {
 
         $level = $this->resolve_target_level($skill);
 
-        return $this->contextresolver->resolve_operating_context($ambient, $level, $selector, $userid);
+        try {
+            return $this->contextresolver->resolve_operating_context($ambient, $level, $selector, $userid);
+        } catch (context_target_unresolved_exception $e) {
+            $decided = $this->decide_by_skill($skill, $input, $e->get_resolution(), $level, $userid);
+            if ($decided === null) {
+                throw $e;
+            }
+            return $ambient->with_context($decided);
+        }
+    }
+
+    /**
+     * Let the skill pick one candidate of an ambiguous target from its own input.
+     *
+     * Baseline UA-1 (L34-L48, thread 16750): "Winter School" fits two courses, but the page the user named exists in
+     * only one of them. The course is resolved before the skill's preflight, so the skill never got to look. A skill
+     * that knows how its input narrows the candidates declares decide_ambiguous_target(); the engine knows no field.
+     * The answer counts only when it is one of the candidates at the target level - anything else keeps the question.
+     *
+     * @param skill_interface $skill
+     * @param array $input
+     * @param context_target_resolution $resolution
+     * @param int $level The target context level.
+     * @param int $userid
+     * @return \context|null
+     */
+    private function decide_by_skill(
+        skill_interface $skill,
+        array $input,
+        context_target_resolution $resolution,
+        int $level,
+        int $userid
+    ): ?\context {
+        $candidates = $resolution->candidates();
+        if (
+            $resolution->status() !== context_target_resolution::STATUS_AMBIGUOUS
+            || count($candidates) < 2
+            || !method_exists($skill, 'decide_ambiguous_target')
+        ) {
+            return null;
+        }
+        $decided = $skill->decide_ambiguous_target($candidates, $input, $userid);
+        if (!($decided instanceof \context) || (int)$decided->contextlevel !== $level) {
+            return null;
+        }
+        $ids = array_map(static fn(array $candidate): int => (int)($candidate['id'] ?? 0), $candidates);
+        return in_array((int)$decided->instanceid, $ids, true) ? $decided : null;
     }
 
     /**

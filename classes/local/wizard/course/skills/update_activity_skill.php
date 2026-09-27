@@ -711,30 +711,13 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
         // 2) By name.
         $query = trim((string)($input['activityquery'] ?? ''));
         if ($query !== '') {
-            $needle = \core_text::strtolower($query);
-            $matches = [];
-            foreach ($modinfo->get_cms() as $cm) {
-                if (!$catalog->is_whitelisted($cm->modname)) {
-                    continue;
-                }
-                if (str_contains(\core_text::strtolower($cm->name), $needle)) {
-                    $matches[] = $cm;
-                }
-            }
-            if (empty($matches)) {
-                // Wave 32: the same comparison by shape (hyphens, spaces, case) - see self::name_match_strength().
-                // Only the full-query strength here: a short name that merely stands inside the user's words must
-                // not win in the ambient course before the other courses were searched.
-                $matches = self::strongest_matches(
-                    array_values(array_filter(
-                        $modinfo->get_cms(),
-                        static fn($cm): bool => $catalog->is_whitelisted($cm->modname)
-                    )),
-                    $query,
-                    static fn($cm): string => (string)$cm->name,
-                    self::MATCH_WHOLE_QUERY
-                );
-            }
+            $matches = self::cms_matching_query(
+                array_values(array_filter(
+                    $modinfo->get_cms(),
+                    static fn($cm): bool => $catalog->is_whitelisted($cm->modname)
+                )),
+                $query
+            );
             if (count($matches) === 1) {
                 return $matches[0];
             }
@@ -795,6 +778,69 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
             'Which activity should I edit? Name it (e.g. "the Welcome page").',
             'UPDATE_ACTIVITY_TARGET_REQUIRED'
         );
+    }
+
+    /**
+     * The activities of one course that a name query points to.
+     *
+     * A name containing the query; when none does, the same comparison by shape (wave 32: hyphens, spaces, case - see
+     * self::name_match_strength()). Only the full-query strength there: a short name that merely stands inside the
+     * user's words must not win in one course before the other courses were searched.
+     *
+     * @param \cm_info[] $cms Editable activities of one course.
+     * @param string $query
+     * @return \cm_info[]
+     */
+    private static function cms_matching_query(array $cms, string $query): array {
+        $needle = \core_text::strtolower($query);
+        $matches = array_values(array_filter(
+            $cms,
+            static fn($cm): bool => str_contains(\core_text::strtolower((string)$cm->name), $needle)
+        ));
+        if (!empty($matches)) {
+            return $matches;
+        }
+        return self::strongest_matches($cms, $query, static fn($cm): string => (string)$cm->name, self::MATCH_WHOLE_QUERY);
+    }
+
+    /**
+     * Of several courses the named course fits, the one that holds the named activity (declarative hook of
+     * skill_operating_context_resolver).
+     *
+     * Baseline UA-1 (thread 16750): "the 'Untitled page' in Winter School" - two courses are called "Winter School ...",
+     * the page exists in one. Only courses the user can open count, only activities the user can see and edit here.
+     * No activity named, or the activity in none or several of the courses: null, the course question stays.
+     *
+     * @param array[] $candidates Course candidates ({id, name, shortname}).
+     * @param array $input The command input.
+     * @param int $userid
+     * @return context|null
+     */
+    public function decide_ambiguous_target(array $candidates, array $input, int $userid): ?context {
+        $query = trim((string)($input['activityquery'] ?? ''));
+        $cmid = (int)($input['cmid'] ?? 0);
+        $user = \core_user::get_user($userid);
+        if (($query === '' && $cmid <= 0) || !$user) {
+            return null;
+        }
+        $catalog = new module_catalog_service();
+        $holding = [];
+        foreach ($candidates as $candidate) {
+            $courseid = (int)($candidate['id'] ?? 0);
+            $course = $courseid > SITEID ? get_course($courseid) : null;
+            if (!$course || !can_access_course($course, $user, '', true)) {
+                continue;
+            }
+            $cms = array_filter(
+                get_fast_modinfo($course, $userid)->get_cms(),
+                static fn($cm): bool => $cm->uservisible && $catalog->is_whitelisted($cm->modname)
+            );
+            $holds = $cmid > 0 ? isset($cms[$cmid]) : !empty(self::cms_matching_query(array_values($cms), $query));
+            if ($holds) {
+                $holding[] = $courseid;
+            }
+        }
+        return count($holding) === 1 ? context_course::instance($holding[0]) : null;
     }
 
     /**
