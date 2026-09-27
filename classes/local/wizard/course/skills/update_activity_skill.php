@@ -857,20 +857,39 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
      */
     private function find_activities_site_wide_by_tokens(string $query, int $userid): array {
         $candidates = [];
+        $agreed = null;
         foreach (array_slice(self::name_tokens($query), 0, self::MAX_QUERY_TOKENS) as $token) {
             if (\core_text::strlen($token) < self::MIN_TOKEN_CHARS) {
                 continue;
             }
+            $hits = [];
             foreach ($this->find_activities_site_wide(module_catalog_service::WHITELIST, $token, $userid) as $found) {
                 $candidates[(int)$found['cmid']] = $found;
+                // A word of the phrase counts as a match only as a whole word of the name (accents folded): "der"
+                // stands inside "Fédération", but no activity is called "der".
+                $namewords = array_map([self::class, 'fold'], self::name_tokens((string)$found['name']));
+                if (in_array(self::fold($token), $namewords, true)) {
+                    $hits[(int)$found['cmid']] = $found;
+                }
+            }
+            if (!empty($hits)) {
+                $agreed = $agreed === null ? $hits : array_intersect_key($agreed, $hits);
             }
         }
 
-        return self::strongest_matches(
+        $strongest = self::strongest_matches(
             array_values($candidates),
             $query,
             static fn(array $candidate): string => (string)$candidate['name']
         );
+        if (!empty($strongest)) {
+            return $strongest;
+        }
+        // Wave 37 (UA-3, N46 threads 18455/18538): "le lien vers la fédération" describes the URL "Fédération nationale
+        // d'apiculture" - no name holds the phrase, and the name's words are not all in the phrase. As for persons and
+        // courses (target_query_normalizer::narrow_by_tokens): the words that match any activity must agree on the
+        // candidates, a word that matches nothing carries no meaning. One is the target, several are the choices.
+        return array_values((array)$agreed);
     }
 
     /**
@@ -929,6 +948,16 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
             return self::MATCH_NAME_TOKENS;
         }
         return 0;
+    }
+
+    /**
+     * A word with its accents folded, for whole-word comparison across spellings ("fédération" / "federation").
+     *
+     * @param string $word
+     * @return string
+     */
+    private static function fold(string $word): string {
+        return \core_text::strtolower(\core_text::specialtoascii($word));
     }
 
     /**
