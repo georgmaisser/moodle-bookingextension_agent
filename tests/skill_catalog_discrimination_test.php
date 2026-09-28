@@ -24,6 +24,7 @@
 
 namespace bookingextension_agent\local\wizard\services;
 
+use bookingextension_agent\local\wizard\skill_registry;
 use bookingextension_agent\local\wizard\skill_registry_factory;
 
 /**
@@ -284,5 +285,33 @@ final class skill_catalog_discrimination_test extends \advanced_testcase {
         }
 
         $this->assertSame([], $onesided, "one-sided fences:\n" . implode("\n", $onesided));
+    }
+
+    /**
+     * No raw IS:/NOT: clause is longer than the registry cap.
+     *
+     * The registry cuts every clause at {@see skill_registry::DISCRIMINATION_CAP} characters, mid-word, and the
+     * card carries the cut text - the selector never sees the rest. Wave 38 wrote two NOT lines of 233 and 249
+     * characters: the sibling names at the end fell off (the mutual-fence test caught that), and the A/B replay
+     * had measured the uncut text. A clause that does not fit says so here, before any replay.
+     */
+    public function test_no_raw_clause_exceeds_the_registry_cap(): void {
+        $this->resetAfterTest();
+
+        $registry = skill_registry_factory::get_default();
+        $over = [];
+        foreach ($registry->get_skills() as $skill) {
+            $schema = $skill->get_schema();
+            $name = $skill->get_name();
+            foreach (['is', 'not'] as $key) {
+                $clause = trim((string)preg_replace('/\s+/', ' ', (string)($schema[$key] ?? '')));
+                $length = \core_text::strlen($clause);
+                if ($length > skill_registry::DISCRIMINATION_CAP) {
+                    $over[] = $name . ' ' . $key . ' (' . $length . ')';
+                }
+            }
+        }
+
+        $this->assertSame([], $over, "clauses over the cap:\n" . implode("\n", $over));
     }
 }
