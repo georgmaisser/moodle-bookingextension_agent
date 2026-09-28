@@ -219,6 +219,16 @@ class search_users_skill extends core_skill_base implements
         $canviewidentitysystem = has_capability('moodle/site:viewuseridentity', $systemctx);
 
         $candidates = $this->search_user_candidates_for_preview($query, $limit);
+        if (empty($candidates)) {
+            // Wave 37 (DUC-3, L50 thread 18996, an asset): "Madame <name>" as one string found nobody, although the name
+            // alone is unique - the same narrowing the person resolver got in wave 26 ("Mr Okafor"): the tokens that
+            // match someone must agree, a token that matches nobody (a salutation, a title) carries no meaning.
+            $candidates = \bookingextension_agent\local\wizard\services\target_query_normalizer::narrow_by_tokens(
+                $query,
+                fn(string $token, int $tokenlimit): array => $this->search_user_candidates_for_preview($token, $tokenlimit),
+                $limit
+            );
+        }
         $payloadusers = [];
         $hiddencount = 0;
         foreach ($candidates as $candidate) {
