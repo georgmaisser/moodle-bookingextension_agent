@@ -67,7 +67,10 @@ final class scaffold_skillname_test extends advanced_testcase {
         ]);
 
         $this->assertStringContainsString('faehigkeit', $name, 'umlauts transliterate, never bare underscores');
-        $this->assertDoesNotMatchRegularExpression('/_[a-z]{1,2}$/', $name,
-            'the slug must cut at a word boundary, not mid-word');
+        $this->assertDoesNotMatchRegularExpression(
+            '/_[a-z]{1,2}$/',
+            $name,
+            'the slug must cut at a word boundary, not mid-word'
+        );
     }
 }

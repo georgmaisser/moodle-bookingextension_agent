@@ -116,17 +116,26 @@ final class sitesearch_end_to_end_test extends advanced_testcase {
 
         $user = $this->getDataGenerator()->create_user();
         $this->setUser($user);
-        $titles = array_map(static fn(array $h): string => (string)$h['title'],
-            $search->search('Waschbären', 0, 5));
-        $this->assertSame([], preg_grep('/Waschbär/', $titles) ?: [],
-            'content in an inaccessible course must never surface');
+        $titles = array_map(
+            static fn(array $h): string => (string)$h['title'],
+            $search->search('Waschbären', 0, 5)
+        );
+        $this->assertSame(
+            [],
+            preg_grep('/Waschbär/', $titles) ?: [],
+            'content in an inaccessible course must never surface'
+        );
 
         $this->getDataGenerator()->enrol_user($user->id, $coursea->id, 'student');
         $this->setUser($user);
-        $titles = array_map(static fn(array $h): string => (string)$h['title'],
-            $search->search('Waschbären', 0, 5));
-        $this->assertNotEmpty(preg_grep('/Waschbär/', $titles),
-            'after enrolment the same search must succeed');
+        $titles = array_map(
+            static fn(array $h): string => (string)$h['title'],
+            $search->search('Waschbären', 0, 5)
+        );
+        $this->assertNotEmpty(
+            preg_grep('/Waschbär/', $titles),
+            'after enrolment the same search must succeed'
+        );
     }
 
     /**

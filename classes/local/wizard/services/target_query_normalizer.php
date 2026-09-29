@@ -27,7 +27,7 @@ namespace bookingextension_agent\local\wizard\services;
 /**
  * Two tolerances every resolver needs, and neither of them reads a word (#2453, wave 19).
  *
- * Baseline runs 25-27: "Madame wbtf_duval@example.invalid" reached the user resolvers, which test for an
+ * Baseline runs 25-27: "Madame wbtf_duval (at) example.invalid" reached the user resolvers, which test for an
  * "@" and then look the WHOLE string up as an e-mail address; and "Vorstellungs-Forum" reached the module
  * resolver, which compares the raw string with the forum named "Vorstellungsforum". Both are shape, not
  * language: an address-shaped token is an address wherever it stands, and two names that differ only in

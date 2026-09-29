@@ -69,7 +69,9 @@ final class docs_embeddings_rebuild_reporting_test extends advanced_testcase {
         $this->assertArrayHasKey('testcorpus', $corpora, 'the summary must break figures down per corpus');
         $this->assertSame(1, (int)($corpora['testcorpus']['files'] ?? -1));
 
-        $this->assertNotEmpty(preg_grep('/testcorpus/', $lines),
-            'the progress sink must receive at least the corpus summary line');
+        $this->assertNotEmpty(
+            preg_grep('/testcorpus/', $lines),
+            'the progress sink must receive at least the corpus summary line'
+        );
     }
 }

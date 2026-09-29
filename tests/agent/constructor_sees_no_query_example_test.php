@@ -94,7 +94,7 @@ final class constructor_sees_no_query_example_test extends abstract_agent_testca
         $_POST['sesskey'] = sesskey();
         [$store, $runtime, $threadid] = $this->build_runtime();
 
-        // The example of course.enrol_user is {userquery: anna.muster@example.com, role: student, coursequery: First Aid}.
+        // The example of course.enrol_user is {userquery: anna.muster (at) example.com, role: student, coursequery: First Aid}.
         $this->install_scripted_planner([
             $this->selector_skill_call('course.enrol_user'),
             $this->constructor_clarification('In welchen Kurs?'),

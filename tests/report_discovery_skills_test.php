@@ -91,7 +91,10 @@ final class report_discovery_skills_test extends advanced_testcase {
         $this->assertArrayHasKey(
             list_report_sources_skill::SKILL_NAME,
             $bykey,
-            'diagnostics: ' . implode(' || ', array_filter($diagnostics, static fn($d): bool => stripos((string)$d, 'report') !== false))
+            'diagnostics: ' . implode(
+                ' || ',
+                array_filter($diagnostics, static fn($d): bool => stripos((string)$d, 'report') !== false)
+            )
         );
         $this->assertArrayHasKey(describe_report_source_skill::SKILL_NAME, $bykey);
         $list = $bykey[list_report_sources_skill::SKILL_NAME];

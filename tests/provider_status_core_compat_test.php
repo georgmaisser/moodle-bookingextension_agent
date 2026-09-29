@@ -55,10 +55,15 @@ final class provider_status_core_compat_test extends advanced_testcase {
             (int)context_module::instance($booking->cmid)->id
         );
 
-        $this->assertNotSame('exception_thrown', (string)($status['failurereason'] ?? ''),
-            'a missing core_ai API must degrade gracefully, never collapse all gates');
-        $this->assertTrue((bool)($status['courseenabled'] ?? false),
-            'without a module AI-fields API the toggle counts as enabled (course-toggle fallback policy)');
+        $this->assertNotSame(
+            'exception_thrown',
+            (string)($status['failurereason'] ?? ''),
+            'a missing core_ai API must degrade gracefully, never collapse all gates'
+        );
+        $this->assertTrue(
+            (bool)($status['courseenabled'] ?? false),
+            'without a module AI-fields API the toggle counts as enabled (course-toggle fallback policy)'
+        );
     }
 
     /**
@@ -76,7 +81,9 @@ final class provider_status_core_compat_test extends advanced_testcase {
         $aiready = new aiready((int)context_module::instance($booking->cmid)->id, (int)get_admin()->id);
         $method = new \ReflectionMethod($aiready, 'is_module_ai_toggle_enabled');
 
-        $this->assertTrue($method->invoke($aiready, (int)$booking->cmid),
-            'missing core API must read as toggle-enabled, not silently disabled');
+        $this->assertTrue(
+            $method->invoke($aiready, (int)$booking->cmid),
+            'missing core API must read as toggle-enabled, not silently disabled'
+        );
     }
 }

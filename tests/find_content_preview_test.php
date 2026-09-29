@@ -59,8 +59,10 @@ final class find_content_preview_test extends advanced_testcase {
         ];
 
         $skill = new find_content_skill();
-        $this->assertTrue(method_exists($skill, 'get_result_preview'),
-            'find_content must participate in the skill preview channel');
+        $this->assertTrue(
+            method_exists($skill, 'get_result_preview'),
+            'find_content must participate in the skill preview channel'
+        );
         $preview = $skill->get_result_preview($entry, (int)\context_system::instance()->id, 2);
 
         $this->assertIsArray($preview);

@@ -104,12 +104,16 @@ final class mcp_confirmable_softblock_test extends advanced_testcase {
             ''
         ));
 
-        $this->assertFalse((bool)($pending['isError'] ?? true),
-            'a confirmable soft block must stage, not error: ' . json_encode($pending));
+        $this->assertFalse(
+            (bool)($pending['isError'] ?? true),
+            'a confirmable soft block must stage, not error: ' . json_encode($pending)
+        );
         $structured = (array)($pending['structuredContent'] ?? []);
         $this->assertTrue((bool)($structured['pending'] ?? false));
-        $this->assertNotEmpty($structured['confirm_reasons'] ?? [],
-            'the client must learn WHY confirmation is needed');
+        $this->assertNotEmpty(
+            $structured['confirm_reasons'] ?? [],
+            'the client must learn WHY confirmation is needed'
+        );
         $text = (string)($pending['content'][0]['text'] ?? '');
         $this->assertStringContainsString((string)$structured['confirmationcode'], $text);
 
@@ -118,11 +122,16 @@ final class mcp_confirmable_softblock_test extends advanced_testcase {
             (string)$structured['queueitemid'],
             (string)$structured['confirmationcode']
         ));
-        $this->assertFalse((bool)($confirmed['isError'] ?? true),
-            'confirming must execute: ' . json_encode($confirmed));
+        $this->assertFalse(
+            (bool)($confirmed['isError'] ?? true),
+            'confirming must execute: ' . json_encode($confirmed)
+        );
 
-        $this->assertSame(2, $DB->count_records('booking_options', ['text' => $title]),
-            'after the confirm the duplicate is deliberately created');
+        $this->assertSame(
+            2,
+            $DB->count_records('booking_options', ['text' => $title]),
+            'after the confirm the duplicate is deliberately created'
+        );
     }
 
     /**

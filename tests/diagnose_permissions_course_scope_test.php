@@ -47,10 +47,16 @@ final class diagnose_permissions_course_scope_test extends advanced_testcase {
             (int)get_admin()->id
         );
 
-        $this->assertSame('error', (string)($result['status'] ?? ''),
-            'an unresolvable named course must not produce a System-scope answer: ' . json_encode($result));
-        $this->assertStringContainsString('Alpinwandern gibts nicht', (string)($result['usermessage'] ?? ''),
-            'the honest cause names the query');
+        $this->assertSame(
+            'error',
+            (string)($result['status'] ?? ''),
+            'an unresolvable named course must not produce a System-scope answer: ' . json_encode($result)
+        );
+        $this->assertStringContainsString(
+            'Alpinwandern gibts nicht',
+            (string)($result['usermessage'] ?? ''),
+            'the honest cause names the query'
+        );
     }
 
     /**

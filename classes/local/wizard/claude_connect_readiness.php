@@ -210,8 +210,10 @@ class claude_connect_readiness {
             try {
                 $fixersupported = (new \tool_oauthmcp\local\setup\htaccess_fixer())->status()['supported'];
             } catch (\Throwable $e) {
-                debugging('claude_connect_readiness: htaccess_fixer status failed: ' . $e->getMessage(),
-                    DEBUG_DEVELOPER);
+                debugging(
+                    'claude_connect_readiness: htaccess_fixer status failed: ' . $e->getMessage(),
+                    DEBUG_DEVELOPER
+                );
             }
         }
 

@@ -62,8 +62,11 @@ trait scripted_llm_trait {
     /**
      * Engine marker that only a constructor prompt carries: the handoff of the selection phase.
      * Verified on the corpus 2026-09-25: 137 of 137 constructor prompts, 0 of 187 selector prompts.
+     * A static property, not a constant: constants in traits need PHP 8.2 and Moodle 4.5 still runs on 8.1.
+     *
+     * @var string
      */
-    private const CONSTRUCTOR_PROMPT_MARKER = 'phase_handoff.selection=';
+    private static string $constructorpromptmarker = 'phase_handoff.selection=';
 
     /**
      * Install a phase-aware scripted planner: selector and constructor calls consume their own FIFO.
@@ -100,7 +103,7 @@ trait scripted_llm_trait {
         llm_call_service::set_test_responder(function (string $actionclass, string $prompt) use ($sufficient) {
             if ($actionclass === wb_action_names::PLANNER_DECIDE) {
                 $this->scriptedplannerprompts[] = $prompt;
-                if (strpos($prompt, self::CONSTRUCTOR_PROMPT_MARKER) !== false) {
+                if (strpos($prompt, self::$constructorpromptmarker) !== false) {
                     $this->scriptedphases[] = 'C';
                     return !empty($this->scriptedconstructorqueue) ? array_shift($this->scriptedconstructorqueue) : $sufficient;
                 }

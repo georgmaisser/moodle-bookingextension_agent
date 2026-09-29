@@ -19,8 +19,6 @@ namespace bookingextension_agent;
 use advanced_testcase;
 use bookingextension_agent\external\ai_privacy_precheck;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * The precheck must SHOW its low-confidence suspects, not only count them.
  *

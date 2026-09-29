@@ -73,10 +73,16 @@ final class search_users_hidden_matches_observation_test extends advanced_testca
         $usermessage = (string)($result['usermessage'] ?? '');
 
         $this->assertSame([], (array)($result['users'] ?? []), 'the visibility gate itself must keep filtering');
-        $this->assertStringContainsString('not visible', $observation,
-            'the observation must carry the hidden-matches fact, or the synchronizer cannot phrase it');
-        $this->assertNotSame('Found 0 user(s).', $observation,
-            'hidden-only must not produce the byte-identical nonexistence observation');
+        $this->assertStringContainsString(
+            'not visible',
+            $observation,
+            'the observation must carry the hidden-matches fact, or the synchronizer cannot phrase it'
+        );
+        $this->assertNotSame(
+            'Found 0 user(s).',
+            $observation,
+            'hidden-only must not produce the byte-identical nonexistence observation'
+        );
         $this->assertNotSame(
             get_string('agent_booking_search_users_no_results', 'bookingextension_agent'),
             $usermessage,
@@ -135,8 +141,11 @@ final class search_users_hidden_matches_observation_test extends advanced_testca
         $this->assertContains((int)$visible->id, $ids, 'the shared-course match stays visible');
 
         $observation = (string)($result['observation_full'] ?? '');
-        $this->assertStringContainsString('not visible', $observation,
-            'with hidden extras the observation must not read as the complete match set');
+        $this->assertStringContainsString(
+            'not visible',
+            $observation,
+            'with hidden extras the observation must not read as the complete match set'
+        );
         $this->assertStringNotContainsString('Hiddentwo', $observation, 'no hidden identity in the observation');
     }
 }

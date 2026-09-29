@@ -685,6 +685,7 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
      * @param \stdClass $course
      * @param context|false $context Ambient context.
      * @param array $input
+     * @param int $userid
      * @return \cm_info|array
      */
     private function resolve_target_cm(\stdClass $course, $context, array $input, int $userid) {

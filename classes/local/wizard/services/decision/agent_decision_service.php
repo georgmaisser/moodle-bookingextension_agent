@@ -125,7 +125,7 @@ class agent_decision_service {
      * @param skill_registry                   $registry
      * @param conversation_store              $store
      * @param authorization_service          $authz
-     * @param issue_code_provider_interface   $issuecodeprovider
+     * @param issue_code_provider_interface|null $issuecodeprovider
      */
     public function __construct(
         skill_registry $registry,

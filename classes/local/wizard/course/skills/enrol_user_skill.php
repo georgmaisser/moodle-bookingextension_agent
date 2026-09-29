@@ -614,9 +614,9 @@ class enrol_user_skill extends core_skill_base implements skill_trigger_provider
      * caller can ask.
      *
      * @param string $rolequery
-     * @param array<int,string> $assignable roleid => localized name
-     * @param array<int,\stdClass> $shortnames roleid => record with shortname
-     * @return array<int,string> roleid => name
+     * @param array $assignable roleid => localized name
+     * @param array $shortnames roleid => record with shortname
+     * @return array roleid => name
      */
     public static function roles_covering_query(string $rolequery, array $assignable, array $shortnames): array {
         $tokenize = static function (string $text): array {

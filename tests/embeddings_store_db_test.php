@@ -137,8 +137,18 @@ final class embeddings_store_db_test extends advanced_testcase {
         $store->upsert(self::AREA, $gen, $this->docrow('a.md', 1, [0.5, -0.25, 0.125, -1.0], 'h1'));
         $store->upsert(self::AREA, $gen, $this->docrow('b.md', 1, [0.0, 1.0, 0.0, 0.0], 'h2'));
         $other = new embedding_row(
-            self::AREA, 'other_owner', 'c.md', 1, 'Title of c.md',
-            self::MODEL, self::DIMS, 'h3', [1.0, 0.0, 0.0, 0.0], 10, null, null
+            self::AREA,
+            'other_owner',
+            'c.md',
+            1,
+            'Title of c.md',
+            self::MODEL,
+            self::DIMS,
+            'h3',
+            [1.0, 0.0, 0.0, 0.0],
+            10,
+            null,
+            null
         );
         $store->upsert(self::AREA, $gen, $other);
         $store->commit_generation(self::AREA, self::MODEL, self::DIMS, $gen);
