@@ -22,8 +22,11 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace bookingextension_agent\local\wizard;
+namespace bookingextension_agent;
 
+use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\interpreter;
+use bookingextension_agent\local\wizard\skill_registry;
 use bookingextension_agent\local\wizard\services\completed_command_history_service;
 
 /**

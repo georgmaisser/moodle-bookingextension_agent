@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wizard\tests;
+namespace bookingextension_agent\agent\contracts;
 
 use bookingextension_agent\local\wizard\services\queue_command_mapper;
 use bookingextension_agent\local\wizard\services\queue_status_policy;

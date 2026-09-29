@@ -16,7 +16,7 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\local\wizard\tests;
+namespace bookingextension_agent\agent\contracts;
 
 use bookingextension_agent\local\wizard\conversation_store;
 use bookingextension_agent\local\wizard\services\messaging\message_persistence_service;

@@ -22,7 +22,9 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace bookingextension_agent\local\wizard\services;
+namespace bookingextension_agent;
+
+use bookingextension_agent\local\wizard\services\target_query_normalizer;
 
 /**
  * Wave 19 (#2453): the two tolerances the resolvers were missing in baseline runs 25-27.

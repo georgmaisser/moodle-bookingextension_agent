@@ -16,7 +16,7 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\tests\agent\contracts;
+namespace bookingextension_agent\agent\contracts;
 
 use bookingextension_agent\local\wizard\services\embeddings\family_embeddings_retrieval_service;
 use advanced_testcase;

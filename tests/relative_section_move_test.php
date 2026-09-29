@@ -22,7 +22,9 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace bookingextension_agent\local\wizard\course\skills;
+namespace bookingextension_agent;
+
+use bookingextension_agent\local\wizard\course\skills\update_activity_skill;
 
 /**
  * Tests for the relative section move of course.update_activity.

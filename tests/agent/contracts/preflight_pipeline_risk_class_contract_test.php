@@ -16,7 +16,7 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\local\wizard\tests;
+namespace bookingextension_agent\agent\contracts;
 
 // phpcs:disable PHPCompatibility.FunctionDeclarations.NewClosure.ThisFoundInStatic
 // Note: $this inside the anonymous CLASSES built by the static data providers refers to the

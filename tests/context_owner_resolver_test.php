@@ -22,7 +22,9 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace bookingextension_agent\local\wizard\services\discovery;
+namespace bookingextension_agent;
+
+use bookingextension_agent\local\wizard\services\discovery\context_owner_resolver;
 
 /**
  * Tests for context_owner_resolver.

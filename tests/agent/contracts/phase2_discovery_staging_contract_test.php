@@ -16,7 +16,7 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\local\wizard\tests;
+namespace bookingextension_agent\agent\contracts;
 
 use bookingextension_agent\local\wizard\services\discovery\discovery_budget_policy;
 use bookingextension_agent\local\wizard\services\discovery\discovery_confidence_policy;

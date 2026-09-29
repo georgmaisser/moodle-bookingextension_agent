@@ -22,7 +22,10 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace bookingextension_agent\local\wizard;
+namespace bookingextension_agent;
+
+use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\llm_debug_logger;
 
 /**
  * F72 (baseline runs 25-27, threads 7846, 7990, 8054, 8194, 8358, 8365): the call-site string of a

@@ -16,7 +16,7 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\tests\agent\contracts;
+namespace bookingextension_agent\agent\contracts;
 
 use advanced_testcase;
 use bookingextension_agent\local\wizard\orchestrator;

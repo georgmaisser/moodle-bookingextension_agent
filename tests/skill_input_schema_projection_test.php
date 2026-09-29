@@ -22,7 +22,9 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace bookingextension_agent\local\wizard\services;
+namespace bookingextension_agent;
+
+use bookingextension_agent\local\wizard\services\skill_input_schema_projection;
 
 /**
  * Tests for skill_input_schema_projection.

@@ -16,7 +16,7 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\tests\agent\contracts;
+namespace bookingextension_agent\agent\contracts;
 
 use bookingextension_agent\local\wizard\prompt_policy_builder;
 use advanced_testcase;

@@ -22,7 +22,9 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace bookingextension_agent\local\wizard\services;
+namespace bookingextension_agent;
+
+use bookingextension_agent\local\wizard\services\planner_catalog_service;
 
 /**
  * Tests for the REQUIRED line of the compact selection catalogue.

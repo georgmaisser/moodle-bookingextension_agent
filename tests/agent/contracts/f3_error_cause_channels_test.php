@@ -16,7 +16,7 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\tests\agent\contracts;
+namespace bookingextension_agent\agent\contracts;
 
 use bookingextension_agent\local\wizard\interfaces\skill_interface;
 use bookingextension_agent\local\wizard\services\construction\parameter_contract_validator;
