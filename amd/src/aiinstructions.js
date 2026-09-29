@@ -31,6 +31,10 @@ import {getString} from 'core/str';
 let pendingCommands = null;
 // Structured anonymizer collision decision picked via chips (#2226); sent with the next precheck.
 let pendingAnonWordDecision = null;
+/** Original message that waits for the decision about a suspect word; null when none waits. */
+let pendingAnonMessage = null;
+/** True from sending a message until its turn has answered. */
+let sendInFlight = false;
 let pendingQueueItemId = '';
 let currentThreadId = 0;
 let currentContextId = 0;
@@ -2088,21 +2092,65 @@ const stopStepPolling = () => {
 
 
 /**
+ * Whether a new message must wait: a turn is running (and was not stopped) or a decision is open.
+ *
+ * @returns {boolean}
+ */
+const isSendBlocked = () => (sendInFlight && !sendAborted) || pendingAnonMessage !== null;
+
+/**
+ * Remove the open decision prompt of a suspect word from the chat.
+ */
+const clearAnonDecisionPrompt = () => {
+    document.querySelectorAll('.booking-ai-anon-decision-prompt').forEach((el) => el.remove());
+};
+
+/**
+ * Ask the user to decide about a suspect word before the turn starts. The send button stays
+ * disabled; the stop button cancels the waiting message.
+ *
+ * @param {string} text Prompt of the precheck, already in the language of the user.
+ * @param {string} word The suspect word (shown in the interface only).
+ */
+const showAnonDecisionPrompt = async(text, word) => {
+    clearAnonDecisionPrompt();
+    const chips = await previewRenderers.anon_word_decision({word});
+    const div = appendMessageHtml('assistant', `${renderAssistantMessageHtml(text)}${chips}`, {
+        response_type: 'privacy_decision',
+        threadid: Number(currentThreadId || 0),
+        status: 'needs_decision',
+        source: 'ai_privacy_precheck',
+        time: (new Date()).toISOString(),
+    });
+    if (div) {
+        div.classList.add('booking-ai-anon-decision-prompt');
+    }
+};
+
+/**
  * Send a message to the AI agent.
  *
  * @param {string} message
+ * @param {boolean} resume True when the message waited for a decision and is sent now.
  */
-const sendMessage = (message) => {
+const sendMessage = (message, resume = false) => {
     if (!message.trim()) {
+        return;
+    }
+    // One turn at a time, and no new turn while a decision about a suspect word is open.
+    if (isSendBlocked() && !resume) {
         return;
     }
 
     sendAborted = false;
+    sendInFlight = true;
 
-    appendMessage('user', message, {
-        source: 'chat_input',
-        time: (new Date()).toISOString(),
-    });
+    if (!resume) {
+        appendMessage('user', message, {
+            source: 'chat_input',
+            time: (new Date()).toISOString(),
+        });
+    }
 
     const thinking = document.getElementById('booking-ai-thinking');
     const sendBtn  = document.getElementById('booking-ai-send');
@@ -2134,6 +2182,20 @@ const sendMessage = (message) => {
             currentThreadId = precheck.threadid;
         }
 
+        // An undecided suspect word blocks the turn: nothing is sent until the user has chosen.
+        // The chip click repeats the precheck for the same message together with the decision.
+        if (String(precheck.status || '') === 'needs_decision'
+                && Array.isArray(precheck.suspects) && precheck.suspects.length > 0) {
+            sendInFlight = false;
+            pendingAnonMessage = message;
+            if (thinking) {
+                thinking.classList.add('d-none');
+                updateThinkingLabel(defaultThinkingLabel);
+            }
+            showAnonDecisionPrompt(String(precheck.message || ''), String(precheck.suspects[0].word || ''));
+            return precheck;
+        }
+
         const strictMode = Number(precheck.strictmode || 0) === 1;
         const anonymizedCount = Number(precheck.anonymizedcount || 0);
         if (strictMode || anonymizedCount > 0) {
@@ -2146,19 +2208,8 @@ const sendMessage = (message) => {
             });
         }
 
-        // Low-confidence suspects: render the existing chip UI proactively (L6-P1) —
-        // the designed tiebreaker must be visible wherever a single word was masked,
-        // not only behind the person-centric preflight gate.
-        if (Array.isArray(precheck.suspects) && precheck.suspects.length > 0) {
-            precheck.suspects.forEach((suspect) => {
-                dispatchSkillPreview(
-                    {type: 'anon_word_decision', payload: {word: String(suspect.word || '')}},
-                    currentContextId
-                );
-            });
-        }
-
         if (String(precheck.status || '') !== 'ok') {
+            sendInFlight = false;
             if (thinking) {
                 thinking.classList.add('d-none');
                 updateThinkingLabel(defaultThinkingLabel);
@@ -2206,6 +2257,7 @@ const sendMessage = (message) => {
                 pagecontext: pagecontextPayload,
             },
         }])[0].then((resp) => {
+        sendInFlight = false;
         // Stop step polling and remove ephemeral step bubbles before showing final answer.
         stopStepPolling();
         clearStepBubbles();
@@ -2400,6 +2452,7 @@ const sendMessage = (message) => {
         return resp;
     });
     }).catch((err) => {
+        sendInFlight = false;
         stopStepPolling();
         clearStepBubbles();
         if (thinking) {
@@ -3014,6 +3067,9 @@ const displayWelcomeMessage = (numOptions, numBooked) => {
  */
 const stopCurrentRun = () => {
     sendAborted = true;
+    // Stop also cancels a message that waits for the decision about a suspect word.
+    pendingAnonMessage = null;
+    clearAnonDecisionPrompt();
     stopStepPolling();
     clearStepBubbles();
     const thinkingEl = document.getElementById('booking-ai-thinking');
@@ -3106,6 +3162,9 @@ const handleBodyClick = (event) => {
     const sendBtn = target.closest('#booking-ai-send');
     if (sendBtn instanceof HTMLElement) {
         const inputEl = document.getElementById('booking-ai-input');
+        if (isSendBlocked()) {
+            return;
+        }
         if (inputEl instanceof HTMLTextAreaElement || inputEl instanceof HTMLInputElement) {
             const msg = inputEl.value;
             inputEl.value = '';
@@ -3246,12 +3305,32 @@ const handleBodyClick = (event) => {
         const word = String(anonBtn.getAttribute('data-word') || '').trim();
         const decision = String(anonBtn.getAttribute('data-decision') || '').trim();
         const reply = String(anonBtn.getAttribute('data-query') || '').trim();
+        const choice = anonBtn.closest('.booking-ai-anonword-choice');
+        const decided = choice instanceof HTMLElement && choice.dataset.decided === '1';
+        // A chip never starts a second turn next to a running one, and it answers only once.
+        if (decided || (sendInFlight && !sendAborted)) {
+            return;
+        }
         if (word !== '' && (decision === 'person' || decision === 'word') && reply !== '') {
             pendingAnonWordDecision = {word, decision};
-            anonBtn.setAttribute('aria-disabled', 'true');
+            if (choice instanceof HTMLElement) {
+                choice.dataset.decided = '1';
+                choice.querySelectorAll('.booking-ai-anonword-option').forEach((chip) => {
+                    chip.setAttribute('aria-disabled', 'true');
+                    chip.setAttribute('disabled', 'disabled');
+                });
+            }
             anonBtn.classList.remove('btn-outline-primary');
             anonBtn.classList.add('btn-primary');
-            sendMessage(reply);
+            if (pendingAnonMessage !== null) {
+                // The decision belongs to the waiting message: repeat its precheck with the
+                // decision and start the turn. The chip label never becomes a message.
+                const original = pendingAnonMessage;
+                pendingAnonMessage = null;
+                sendMessage(original, true);
+            } else {
+                sendMessage(reply);
+            }
         }
         return;
     }
@@ -3309,6 +3388,10 @@ const handleBodyKeydown = (event) => {
     }
 
     event.preventDefault();
+    if (isSendBlocked()) {
+        // Keep what the user typed: the running turn or the open decision comes first.
+        return;
+    }
     if (target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement) {
         const msg = target.value;
         target.value = '';

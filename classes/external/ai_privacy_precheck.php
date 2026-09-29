@@ -173,8 +173,21 @@ class ai_privacy_precheck extends external_api {
             }
         }
 
+        // An undecided suspect blocks the turn (thread 22045): offering the chips while the turn was
+        // already running let the decision arrive as a second, overlapping turn. The client repeats
+        // this call with the decision and starts the turn only after the status is ok. The message is
+        // shown in the interface only, so it may name the word; nothing is stored here.
+        $needsdecision = !empty($suspects);
+        if ($needsdecision) {
+            $summary = get_string(
+                'agent_anon_decision_required',
+                'bookingextension_agent',
+                (string)$suspects[0]['word']
+            );
+        }
+
         return [
-            'status' => 'ok',
+            'status' => $needsdecision ? 'needs_decision' : 'ok',
             'message' => $summary,
             'sanitizedmessage' => (string)($precheck['sanitizedmessage'] ?? $message),
             'anonymizedcount' => $count,
@@ -194,7 +207,10 @@ class ai_privacy_precheck extends external_api {
      */
     public static function execute_returns(): external_single_structure {
         return new external_single_structure([
-            'status' => new external_value(PARAM_TEXT, 'ok or blocked.'),
+            'status' => new external_value(
+                PARAM_TEXT,
+                'ok, blocked, or needs_decision while a low-confidence suspect of this message is undecided.'
+            ),
             'message' => new external_value(PARAM_RAW, 'Privacy precheck status message.'),
             'sanitizedmessage' => new external_value(PARAM_RAW, 'Sanitized message for downstream LLM call.'),
             'anonymizedcount' => new external_value(PARAM_INT, 'Total anonymized entries.'),

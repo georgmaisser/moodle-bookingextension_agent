@@ -75,6 +75,7 @@ $string['agent_adminpages_desc'] = 'Diese Seiten gehören zum Booking Wizard und
 $string['agent_anon_chip_person'] = 'Ja, ich meine eine Person namens „{$a}“';
 $string['agent_anon_chip_word'] = '„{$a}“ ist ein gewöhnliches Wort, keine Person';
 $string['agent_anon_collision_word_hint'] = 'Hinweis: „{$a}“ entspricht auch dem Namen einer Person auf dieser Website. Falls Sie etwas anderes gemeint haben (zum Beispiel einen Kurs, eine Aktivität oder ein Thema), sagen Sie es bitte.';
+$string['agent_anon_decision_required'] = 'Bevor ich beginne: „{$a}“ entspricht auch dem Namen einer Person auf dieser Website. Bitte wählen Sie aus, was Sie meinen.';
 $string['agent_anon_person_reference_clarify'] = 'Ich war dabei, „{$a}“ als Namen einer Person zu verstehen. Soll ich nach einer Person namens „{$a}“ suchen, oder meinten Sie es als gewöhnliches Wort (zum Beispiel einen Kurs, eine Aktivität oder ein Thema)?';
 $string['agent_booking_core_calendar_event_created'] = 'Kalendereintrag erfolgreich erstellt.';
 $string['agent_booking_core_calendar_event_deleted'] = 'Kalendereintrag erfolgreich gelöscht.';
