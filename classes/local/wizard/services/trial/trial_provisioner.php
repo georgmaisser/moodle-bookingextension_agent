@@ -53,6 +53,10 @@ class trial_provisioner {
     /** @var int Seconds to wait for the trial service (its own back-channel + LiteLLM call take a moment). */
     private const HTTP_TIMEOUT = 25;
 
+    /** @var string Default system instruction of the constructor's planner action (mirrors the provider string). */
+    private const CONSTRUCT_INSTRUCTION =
+        'Act as a precise planner and return the parameters of the selected task as plain JSON.';
+
     /**
      * Run the full trial provisioning for the given context.
      *
@@ -294,6 +298,16 @@ class trial_provisioner {
                     'model' => $model,
                     'systeminstruction' => 'Act as a compact planner and return a structured routing decision as plain JSON.',
                     // Greedy: the planner is a routing + JSON task — determinism kills run-to-run flips.
+                    'temperature' => 0.0,
+                ],
+            ],
+            'aiprovider_wunderbyte\\aiactions\\planner_construct' => [
+                'enabled' => true,
+                'modelsettings' => [],
+                'settings' => [
+                    'endpoint' => $chat,
+                    'model' => $model,
+                    'systeminstruction' => self::CONSTRUCT_INSTRUCTION,
                     'temperature' => 0.0,
                 ],
             ],
@@ -546,6 +560,17 @@ class trial_provisioner {
                     'model' => 'wunderbyte-privat-mini',
                     'systeminstruction' => 'Act as a compact planner and return a structured routing decision as plain JSON.',
                     // Greedy: the planner is a routing + JSON task — determinism kills run-to-run flips.
+                    'temperature' => 0.0,
+                ],
+            ],
+            // The constructor builds schema-bound parameters: it runs on the large model (phase model tiers).
+            'aiprovider_wunderbyte\\aiactions\\planner_construct' => [
+                'enabled' => true,
+                'modelsettings' => [],
+                'settings' => [
+                    'endpoint' => $chat,
+                    'model' => 'wunderbyte-privat',
+                    'systeminstruction' => self::CONSTRUCT_INSTRUCTION,
                     'temperature' => 0.0,
                 ],
             ],

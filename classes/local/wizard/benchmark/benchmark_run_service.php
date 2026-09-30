@@ -373,6 +373,7 @@ class benchmark_run_service {
             'BOOKING_TEST_AI_KEY'             => $ov['key'],
             'BOOKING_TEST_AI_MODEL'           => $ov['reply'],
             'BOOKING_TEST_AI_MODEL_MINI'      => $ov['planner'],
+            'BOOKING_TEST_AI_MODEL_CONSTRUCT' => $ov['construct'],
             'BOOKING_TEST_AI_EMBEDDING_MODEL' => $ov['embed'],
             'BOOKING_TEST_AI_ENDPOINT'        => $ov['endpoint'],
         ];

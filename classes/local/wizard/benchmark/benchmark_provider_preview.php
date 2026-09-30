@@ -54,6 +54,9 @@ class benchmark_provider_preview {
             wb_action_names::GENERATE_AGENT_REPLY,
             'core_ai\\aiactions\\generate_text',
         ],
+        'construct' => [
+            wb_action_names::PLANNER_CONSTRUCT,
+        ],
         'embed' => [
             wb_action_names::GENERATE_EMBEDDINGS,
             'core_ai\\aiactions\\generate_embeddings',
@@ -85,7 +88,8 @@ class benchmark_provider_preview {
      * a model, and read that action's model + endpoint from its settings.
      *
      * @param \core_ai\provider $provider
-     * @return array{key: string, planner: string, reply: string, embed: string, embeddims: int, endpoint: string}
+     * @return array{key: string, planner: string, construct: string, reply: string, embed: string, embeddims: int,
+     *     endpoint: string}
      */
     public static function extract_overrides(\core_ai\provider $provider): array {
         $config = (array)($provider->config ?? []);
@@ -105,6 +109,7 @@ class benchmark_provider_preview {
 
         [$replyaction, $replymodel] = $pick(self::ROLE_ACTIONS['reply']);
         [, $plannermodel]           = $pick(self::ROLE_ACTIONS['planner']);
+        [, $constructmodel]         = $pick(self::ROLE_ACTIONS['construct']);
         [$embedaction, $embedmodel] = $pick(self::ROLE_ACTIONS['embed']);
         $embeddims = $embedaction !== '' ? (int)($ac[$embedaction]['settings']['dimensions'] ?? 0) : 0;
 
@@ -126,6 +131,8 @@ class benchmark_provider_preview {
         return [
             'key'      => (string)($config['apikey'] ?? ''),
             'planner'  => $plannermodel,
+            // An instance without the constructor action serves construction with its planner model.
+            'construct' => $constructmodel !== '' ? $constructmodel : $plannermodel,
             'reply'    => $replymodel,
             'embed'    => $embedmodel,
             'embeddims' => $embeddims,

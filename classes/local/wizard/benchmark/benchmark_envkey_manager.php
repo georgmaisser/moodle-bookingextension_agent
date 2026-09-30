@@ -18,6 +18,9 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wizard\benchmark;
 
+use bookingextension_agent\local\wizard\wb_action_names;
+use core_ai\aiactions\generate_text;
+
 /**
  * AI manager subclass that applies env var overrides when
  * BOOKING_TEST_AI_KEY is supplied, for benchmark runs.
@@ -40,7 +43,11 @@ namespace bookingextension_agent\local\wizard\benchmark;
  *      - config['apikey']                     ← BOOKING_TEST_AI_KEY
  *      - planner_decide settings.model        ← BOOKING_TEST_AI_MODEL_MINI
  *                                               (falls back to BOOKING_TEST_AI_MODEL)
+ *      - planner_construct settings.model     ← BOOKING_TEST_AI_MODEL_CONSTRUCT
+ *                                               (falls back to BOOKING_TEST_AI_MODEL)
  *      - generate_agent_reply settings.model  ← BOOKING_TEST_AI_MODEL
+ *      - generate_text settings.model         ← BOOKING_TEST_AI_MODEL (skill-internal calls; the
+ *                                               normalizer uses it only without planner_decide)
  *      - generate_embeddings settings.model   ← BOOKING_TEST_AI_EMBEDDING_MODEL
  *
  *    Cloneable::with() uses reflection to set readonly properties directly on
@@ -97,6 +104,7 @@ class benchmark_envkey_manager extends \core_ai\manager {
         $envkey          = trim((string)(getenv('BOOKING_TEST_AI_KEY') ?: ''));
         $envmodel        = trim((string)(getenv('BOOKING_TEST_AI_MODEL') ?: ''));
         $envmodelmini    = trim((string)(getenv('BOOKING_TEST_AI_MODEL_MINI') ?: ''));
+        $envmodelcons    = trim((string)(getenv('BOOKING_TEST_AI_MODEL_CONSTRUCT') ?: ''));
         $envembedmodel   = trim((string)(getenv('BOOKING_TEST_AI_EMBEDDING_MODEL') ?: ''));
         $envendpoint     = trim((string)(getenv('BOOKING_TEST_AI_ENDPOINT') ?: ''));
 
@@ -117,8 +125,17 @@ class benchmark_envkey_manager extends \core_ai\manager {
         if ($plannermodel !== '' && isset($newac[self::WB_ACTION_PLANNER_DECIDE])) {
             $newac[self::WB_ACTION_PLANNER_DECIDE]['settings']['model'] = $plannermodel;
         }
+        $constructmodel = $envmodelcons !== '' ? $envmodelcons : $envmodel;
+        if ($constructmodel !== '' && isset($newac[wb_action_names::PLANNER_CONSTRUCT])) {
+            $newac[wb_action_names::PLANNER_CONSTRUCT]['settings']['model'] = $constructmodel;
+        }
         if ($envmodel !== '' && isset($newac[self::WB_ACTION_GENERATE_AGENT_REPLY])) {
             $newac[self::WB_ACTION_GENERATE_AGENT_REPLY]['settings']['model'] = $envmodel;
+        }
+        // Without this, generate_text kept the working instance's model while the key came from the benchmarked
+        // instance, which the gateway rejects (HTTP 403, benchmark runs 71-73).
+        if ($envmodel !== '' && isset($newac[generate_text::class])) {
+            $newac[generate_text::class]['settings']['model'] = $envmodel;
         }
         if ($envembedmodel !== '' && isset($newac[self::WB_ACTION_GENERATE_EMBEDDINGS])) {
             $newac[self::WB_ACTION_GENERATE_EMBEDDINGS]['settings']['model'] = $envembedmodel;
