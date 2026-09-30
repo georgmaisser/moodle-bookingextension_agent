@@ -87,6 +87,14 @@
     grid-template-columns: minmax(0, 100%) 10px minmax(0, 0%);
 }
 
+/* A collapsed pane is 0px wide, so its text would wrap one letter per line and
+   stretch the row height. Keep its content out of the layout until it opens. */
+@media (min-width: 992px) {
+    #booking-ai-wrapper .booking-ai-body-layout.preview-collapsed .booking-ai-preview-pane > * {
+        display: none;
+    }
+}
+
 body.booking-ai-resizing #booking-ai-wrapper .booking-ai-body-layout {
     transition: none;
 }
