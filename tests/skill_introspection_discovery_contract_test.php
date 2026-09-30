@@ -106,6 +106,105 @@ final class skill_introspection_discovery_contract_test extends advanced_testcas
     }
 
     /**
+     * Fake introspection provider with two skills whose descriptions are distinctive strings.
+     *
+     * @return skill_introspection_provider_interface
+     */
+    private function make_two_skill_provider(): skill_introspection_provider_interface {
+        return new class implements skill_introspection_provider_interface {
+            /**
+             * Two available rows, one readonly and one mutating.
+             *
+             * @param int $userid
+             * @param int $contextid
+             * @param string $scope
+             * @return array
+             */
+            public function list_actions(int $userid, int $contextid, string $scope): array {
+                return [
+                    'available' => [
+                        ['skill' => 'test.alpha', 'label' => 'test.alpha', 'description' => 'ALPHA_DESCRIPTION_TEXT',
+                            'readonly' => true, 'provider' => 'bookingextension_agent'],
+                        ['skill' => 'test.gamma', 'label' => 'test.gamma', 'description' => 'GAMMA_DESCRIPTION_TEXT',
+                            'readonly' => false, 'provider' => 'bookingextension_agent'],
+                    ],
+                    'unavailable' => [],
+                ];
+            }
+
+            /**
+             * The full catalog carries the card format with descriptions.
+             *
+             * @param int $userid
+             * @param int $contextid
+             * @param string $scope
+             * @return string
+             */
+            public function render_full_skill_catalog(int $userid, int $contextid, string $scope): string {
+                return "## test.alpha [readonly]\nALPHA_DESCRIPTION_TEXT\n\n## test.gamma [mutating]\nGAMMA_DESCRIPTION_TEXT";
+            }
+        };
+    }
+
+    /**
+     * Default detail "names": the answer and the observation list the skill names only, no descriptions
+     * (the overview the user asked for; thread 23502 handed the synchronizer 49 KB of selector cards).
+     */
+    public function test_list_skills_default_detail_lists_names_only(): void {
+        $this->resetAfterTest();
+
+        $skill = new list_skills_skill();
+        $skill->set_introspection_provider($this->make_two_skill_provider());
+        $result = $skill->execute(['scope' => 'all'], 999999, 1);
+
+        $this->assertSame('executed', $result['status']);
+        $this->assertSame('names', $result['detail_level']);
+        foreach (['detail', 'usermessage', 'observation_full'] as $key) {
+            $text = (string)$result[$key];
+            $this->assertStringContainsString('test.alpha', $text, $key);
+            $this->assertStringContainsString('test.gamma', $text, $key);
+            $this->assertStringNotContainsString('ALPHA_DESCRIPTION_TEXT', $text, $key);
+            $this->assertStringNotContainsString('GAMMA_DESCRIPTION_TEXT', $text, $key);
+        }
+        // Read/write grouping survives in the names-only listing.
+        $this->assertStringContainsString('readonly', (string)$result['observation_full']);
+        $this->assertStringContainsString('mutating', (string)$result['observation_full']);
+    }
+
+    /**
+     * detail "full": the observation is the complete catalog with every description (a skill is to be
+     * picked from it next), and the answer carries the descriptions too.
+     */
+    public function test_list_skills_full_detail_carries_descriptions(): void {
+        $this->resetAfterTest();
+
+        $skill = new list_skills_skill();
+        $skill->set_introspection_provider($this->make_two_skill_provider());
+        $result = $skill->execute(['scope' => 'all', 'detail' => 'full'], 999999, 1);
+
+        $this->assertSame('full', $result['detail_level']);
+        $this->assertStringContainsString('ALPHA_DESCRIPTION_TEXT', (string)$result['observation_full']);
+        $this->assertStringContainsString('GAMMA_DESCRIPTION_TEXT', (string)$result['observation_full']);
+        $this->assertStringContainsString('ALPHA_DESCRIPTION_TEXT', (string)$result['detail']);
+    }
+
+    /**
+     * An unknown detail value is a recoverable input error (a question, never a hard error), and the
+     * user text carries no schema field list.
+     */
+    public function test_list_skills_unknown_detail_is_recoverable(): void {
+        $this->resetAfterTest();
+
+        $skill = new list_skills_skill();
+        $check = $skill->check_structure(['detail' => 'verbose']);
+
+        $this->assertFalse($check['valid']);
+        $this->assertContains('RECOVERABLE_INPUT_ERROR', $check['issue_codes']);
+        $this->assertCount(1, $check['errors']);
+        $this->assertStringNotContainsString('RECOVERABLE_INPUT_ERROR', $check['errors'][0]);
+    }
+
+    /**
      * search_skills renders the injected discovery provider's matches on STATUS_OK.
      */
     public function test_search_skills_uses_injected_discovery_on_success(): void {
