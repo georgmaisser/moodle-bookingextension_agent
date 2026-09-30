@@ -1683,7 +1683,7 @@
         {
             "skill": "core.get_current_user",
             "anchor_index": 0,
-            "content_hash": "337d9c53a377fcb79c98be7e09e10982871fccfa2f3285620fcde6c751f44362"
+            "content_hash": "1f57530e25fc67a1af9f9d5b99d8ae7fd7a40c5421276e6fac0acb0f54d637a6"
         },
         {
             "skill": "core.get_current_user",
@@ -1709,6 +1709,21 @@
             "skill": "core.get_current_user",
             "anchor_index": 5,
             "content_hash": "ab7138e9c1590f5eaf74cafafeaed8db6c094c2d134568b34f01eb8be082d0bf"
+        },
+        {
+            "skill": "core.get_current_user",
+            "anchor_index": 6,
+            "content_hash": "aea37a88cda490d7b54fa116953f3209fbcb0a5e5fb11f85d3bf36ace279e033"
+        },
+        {
+            "skill": "core.get_current_user",
+            "anchor_index": 7,
+            "content_hash": "0392e505656b8fe668572c8cd44794205c0f899358ced3b5ec3b5b108aba5834"
+        },
+        {
+            "skill": "core.get_current_user",
+            "anchor_index": 8,
+            "content_hash": "e647c64c8d43afe866cd0d7a26da1e11da81522d8cf0a6cd1d0e4efe54cee246"
         },
         {
             "skill": "core.search_users",

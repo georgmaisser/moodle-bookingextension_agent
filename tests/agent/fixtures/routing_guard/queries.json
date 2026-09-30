@@ -403,6 +403,21 @@
             "text": "Tell me briefly who I am for the system."
         },
         {
+            "id": "GCU-5",
+            "skill": "core.get_current_user",
+            "text": "what can I book here? which courses am I enrolled in?"
+        },
+        {
+            "id": "GCU-6",
+            "skill": "core.get_current_user",
+            "text": "What can I book here? Where am I enrolled?"
+        },
+        {
+            "id": "GCU-7",
+            "skill": "core.get_current_user",
+            "text": "which courses am I enrolled in?"
+        },
+        {
             "id": "GOD-1",
             "skill": "mod_booking.get_option_details",
             "text": "That Herbstwanderung thing — when exactly does it meet and is there still room?"
