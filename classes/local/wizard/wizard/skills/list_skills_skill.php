@@ -35,6 +35,12 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
     /** Skill name constant. */
     public const SKILL_NAME = 'wizard.list_skills';
 
+    /** Detail level: skill names only, grouped (the default overview). */
+    public const DETAIL_NAMES = 'names';
+
+    /** Detail level: every skill with its complete description. */
+    public const DETAIL_FULL = 'full';
+
     /** @var skill_introspection_provider_interface|null Engine-injected introspection provider. */
     private ?skill_introspection_provider_interface $introspection = null;
 
@@ -96,6 +102,13 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
                     'description' => 'Filter scope: all (default), readonly, or mutating.',
                     'required' => false,
                 ],
+                'detail' => [
+                    'type' => 'string',
+                    'description' => 'names (default): the short overview, one line per skill with its name only, grouped '
+                        . 'by provider and read/write. full: every skill with its complete description - when the user '
+                        . 'wants to know what the skills do, or one of them is to be chosen from the list next.',
+                    'required' => false,
+                ],
                 'outputlang' => [
                     'type' => 'string',
                     'description' => 'Optional language code override for the user-facing summary, e.g. de or en.',
@@ -132,6 +145,10 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
                 'id' => 'wizard.list_skills_scope_filter',
                 'description' => 'User asks for only readonly or only mutating actions.',
             ],
+            [
+                'id' => 'wizard.list_skills_full_detail',
+                'description' => 'User wants every skill explained, not just the list of names.',
+            ],
         ];
     }
 
@@ -148,6 +165,11 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
         $allowed = ['all', 'readonly', 'mutating'];
         if (!in_array($scope, $allowed, true)) {
             $errors[] = get_string('agent_booking_list_actions_scope_invalid', 'bookingextension_agent');
+            $issuecodes[] = 'RECOVERABLE_INPUT_ERROR';
+        }
+        $detail = strtolower(trim((string)($input['detail'] ?? self::DETAIL_NAMES)));
+        if (!in_array($detail, [self::DETAIL_NAMES, self::DETAIL_FULL], true)) {
+            $errors[] = get_string('agent_booking_list_actions_detail_invalid', 'bookingextension_agent');
             $issuecodes[] = 'RECOVERABLE_INPUT_ERROR';
         }
 
@@ -192,6 +214,10 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
      */
     public function execute(array $input, int $contextid, int $userid): array {
         $scope = strtolower(trim((string)($input['scope'] ?? 'all')));
+        $detail = strtolower(trim((string)($input['detail'] ?? self::DETAIL_NAMES)));
+        if ($detail !== self::DETAIL_FULL) {
+            $detail = self::DETAIL_NAMES;
+        }
 
         // Introspection (registry + executability evaluation) is engine machinery — it is injected by
         // the executor as a contract; only the localized deny-reason label is a presentation concern
@@ -207,7 +233,7 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
 
         $capabilities = $this->build_user_capabilities($actions);
 
-        $summary = $this->build_user_summary($scope, $capabilities, $unavailableactions);
+        $summary = $this->build_user_summary($scope, $capabilities, $unavailableactions, $detail === self::DETAIL_FULL);
 
         $debugmessage = $this->build_debug_summary($scope, $actions, $capabilities, $unavailableactions);
 
@@ -216,19 +242,60 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
         // dump that previously bloated the follow-up selection prompt into a gateway timeout (thread
         // 565). The user-facing answer stays the grouped summary above. Engine-agnostic: the slim
         // catalog comes via the injected introspection provider, not from engine internals here.
-        $observation = ($this->introspection ?? new skill_introspection_service())
-            ->render_full_skill_catalog($userid, $contextid, $scope);
+        // Two detail levels (George, 2026-09-30, thread 23502): the overview the user asked for is the list of
+        // names - 91 selector cards (49 KB of IS/NOT/WHEN lines) handed to the synchronizer as the "result" made
+        // it answer with a one-line stub instead of rendering anything. The full catalog stays available as
+        // detail=full, for a turn that will pick a skill from the list next.
+        if ($detail === self::DETAIL_FULL) {
+            $observation = ($this->introspection ?? new skill_introspection_service())
+                ->render_full_skill_catalog($userid, $contextid, $scope);
+        } else {
+            $observation = $this->render_names_catalog($capabilities);
+        }
         return [
             'status' => 'executed',
             'detail' => $summary,
             'resultid' => null,
             'usermessage' => $summary,
             'debugmessage' => $debugmessage,
+            'detail_level' => $detail,
             'capabilities' => $capabilities,
             'actions' => $actions,
             'unavailable_actions' => $unavailableactions,
             'observation_full' => $observation,
         ];
+    }
+
+    /**
+     * Render the names-only catalog: one line per skill, grouped by provider and readonly/mutating.
+     *
+     * @param array[] $capabilities Provider blocks from build_user_capabilities().
+     * @return string
+     */
+    private function render_names_catalog(array $capabilities): string {
+        $lines = [];
+        foreach ($capabilities as $providerblock) {
+            $provider = trim((string)($providerblock['provider'] ?? ''));
+            $groups = (array)($providerblock['groups'] ?? []);
+            foreach (['readonly' => 'readonly', 'write' => 'mutating'] as $accesslevel => $mutability) {
+                $entries = (array)($groups[$accesslevel] ?? []);
+                if (empty($entries)) {
+                    continue;
+                }
+                $lines[] = '## ' . ($provider !== '' ? $provider : 'unknown') . ' [' . $mutability . ']';
+                foreach ($entries as $capability) {
+                    $skillname = trim((string)($capability['skill'] ?? ''));
+                    if ($skillname === '') {
+                        $skillname = trim((string)($capability['label'] ?? ''));
+                    }
+                    if ($skillname !== '') {
+                        $lines[] = '- ' . $skillname;
+                    }
+                }
+                $lines[] = '';
+            }
+        }
+        return trim(implode("\n", $lines));
     }
 
     /**
@@ -262,9 +329,15 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
      * @param string $scope
      * @param array[] $capabilities
      * @param array[] $unavailableactions
+     * @param bool $withdescriptions Append each skill's description (detail=full) or list the names only.
      * @return string
      */
-    private function build_user_summary(string $scope, array $capabilities, array $unavailableactions = []): string {
+    private function build_user_summary(
+        string $scope,
+        array $capabilities,
+        array $unavailableactions = [],
+        bool $withdescriptions = true
+    ): string {
         if (empty($capabilities)) {
             $summary = get_string('ai_list_actions_summary_none', 'bookingextension_agent');
         } else if ($scope === 'readonly') {
@@ -304,7 +377,7 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
                         $line .= get_string('ai_list_actions_summary_none', 'bookingextension_agent');
                     }
 
-                    if ($description !== '') {
+                    if ($withdescriptions && $description !== '') {
                         $line .= ': ' . $description;
                     }
 

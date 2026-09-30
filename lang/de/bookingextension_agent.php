@@ -188,6 +188,7 @@ $string['agent_booking_explain_skill_schema_found'] = 'Schema für Skill "{$a}" 
 $string['agent_booking_explain_skill_schema_skillname_required'] = 'Feld "skillname" ist erforderlich.';
 $string['agent_booking_get_current_user_fallback'] = 'Sie sind derzeit als {$a->fullname} ({$a->email}) angemeldet.';
 $string['agent_booking_get_current_user_identified'] = 'Aktueller Benutzer wurde erfolgreich identifiziert.';
+$string['agent_booking_list_actions_detail_invalid'] = 'Feld "detail" muss einen der folgenden Werte haben: names, full.';
 $string['agent_booking_list_actions_scope_invalid'] = 'Feld "scope" muss einen der folgenden Werte haben: all, readonly, mutating.';
 $string['agent_booking_list_categories_found'] = '{$a} passende Kurskategorie(n) gefunden.';
 $string['agent_booking_list_categories_listed'] = '{$a} Kurskategorie(n) auf dieser Website.';
