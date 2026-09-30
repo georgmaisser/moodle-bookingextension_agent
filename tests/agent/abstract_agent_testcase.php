@@ -348,7 +348,7 @@ abstract class abstract_agent_testcase extends agent_testcase_parent {
                 'settings' => [
                     'model' => $model,
                     'endpoint' => $chatendpoint,
-                    'systeminstruction' => 'Build the parameters of the selected skill and return them as plain JSON.',
+                    'systeminstruction' => 'Act as a compact planner and return a structured routing decision as plain JSON.',
                 ],
             ],
             'aiprovider_wunderbyte\\aiactions\\generate_agent_reply' => [

@@ -53,9 +53,9 @@ class trial_provisioner {
     /** @var int Seconds to wait for the trial service (its own back-channel + LiteLLM call take a moment). */
     private const HTTP_TIMEOUT = 25;
 
-    /** @var string Default system instruction of the constructor's planner action (mirrors the provider string). */
+    /** @var string System instruction of both planner actions: the constructor's is the selector's (only the model differs). */
     private const CONSTRUCT_INSTRUCTION =
-        'Act as a precise planner and return the parameters of the selected task as plain JSON.';
+        'Act as a compact planner and return a structured routing decision as plain JSON.';
 
     /**
      * Run the full trial provisioning for the given context.
