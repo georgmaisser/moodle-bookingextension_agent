@@ -330,7 +330,7 @@ abstract class abstract_agent_testcase extends agent_testcase_parent {
                 'settings' => [
                     'model' => $model,
                     'endpoint' => $chatendpoint,
-                    'systeminstruction' => 'Follow the user instruction precisely and return only the requested output.',
+                    'systeminstruction' => '',
                 ],
             ],
             'aiprovider_wunderbyte\\aiactions\\planner_decide' => [
@@ -338,7 +338,7 @@ abstract class abstract_agent_testcase extends agent_testcase_parent {
                 'settings' => [
                     'model' => $minimodel,
                     'endpoint' => $chatendpoint,
-                    'systeminstruction' => 'Act as a compact planner and return a structured routing decision as plain JSON.',
+                    'systeminstruction' => '',
                 ],
             ],
             // The constructor's own action on the larger model (phase model tiers). A provider version without the
@@ -348,7 +348,7 @@ abstract class abstract_agent_testcase extends agent_testcase_parent {
                 'settings' => [
                     'model' => $model,
                     'endpoint' => $chatendpoint,
-                    'systeminstruction' => 'Act as a compact planner and return a structured routing decision as plain JSON.',
+                    'systeminstruction' => '',
                 ],
             ],
             'aiprovider_wunderbyte\\aiactions\\generate_agent_reply' => [
@@ -356,7 +356,7 @@ abstract class abstract_agent_testcase extends agent_testcase_parent {
                 'settings' => [
                     'model' => $model,
                     'endpoint' => $chatendpoint,
-                    'systeminstruction' => 'Compose the final user-facing response in the requested language.',
+                    'systeminstruction' => '',
                 ],
             ],
             'aiprovider_wunderbyte\\aiactions\\generate_embeddings' => [

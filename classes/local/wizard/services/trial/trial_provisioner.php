@@ -53,9 +53,6 @@ class trial_provisioner {
     /** @var int Seconds to wait for the trial service (its own back-channel + LiteLLM call take a moment). */
     private const HTTP_TIMEOUT = 25;
 
-    /** @var string System instruction of both planner actions: the constructor's is the selector's (only the model differs). */
-    private const CONSTRUCT_INSTRUCTION =
-        'Act as a compact planner and return a structured routing decision as plain JSON.';
 
     /**
      * Run the full trial provisioning for the given context.
@@ -296,7 +293,7 @@ class trial_provisioner {
                 'settings' => [
                     'endpoint' => $chat,
                     'model' => $model,
-                    'systeminstruction' => 'Act as a compact planner and return a structured routing decision as plain JSON.',
+                    'systeminstruction' => '',
                     // Greedy: the planner is a routing + JSON task — determinism kills run-to-run flips.
                     'temperature' => 0.0,
                 ],
@@ -307,7 +304,7 @@ class trial_provisioner {
                 'settings' => [
                     'endpoint' => $chat,
                     'model' => $model,
-                    'systeminstruction' => self::CONSTRUCT_INSTRUCTION,
+                    'systeminstruction' => '',
                     'temperature' => 0.0,
                 ],
             ],
@@ -317,7 +314,7 @@ class trial_provisioner {
                 'settings' => [
                     'endpoint' => $chat,
                     'model' => $model,
-                    'systeminstruction' => 'Compose the final user-facing response in the requested language.',
+                    'systeminstruction' => '',
                     // Mildly warm for natural prose, but low enough to stay faithful to the planner result.
                     'temperature' => 0.3,
                 ],
@@ -328,7 +325,7 @@ class trial_provisioner {
                 'settings' => [
                     'endpoint' => $chat,
                     'model' => $model,
-                    'systeminstruction' => '[[action_generate_text_instruction]]',
+                    'systeminstruction' => '',
                     'temperature' => 0.3,
                 ],
             ],
@@ -530,7 +527,7 @@ class trial_provisioner {
                 'settings' => [
                     'endpoint' => $chat,
                     'model' => 'wunderbyte-privat',
-                    'systeminstruction' => '[[action_generate_text_instruction]]',
+                    'systeminstruction' => '',
                     'temperature' => $gttemperature,
                 ],
             ],
@@ -541,7 +538,8 @@ class trial_provisioner {
             return $generatetext;
         }
 
-        // Full Wunderbyte trial config: embeddings + compact planner + agent reply + generate_text.
+        // Full Wunderbyte trial config: embeddings + compact planner + agent reply + generate_text. No action carries a
+        // system instruction: the agent brings its complete prompt per phase (Wunderbyte-GmbH/Wunderbyte-GmbH#2505).
         return [
             'aiprovider_wunderbyte\\aiactions\\generate_embeddings' => [
                 'enabled' => true,
@@ -558,7 +556,7 @@ class trial_provisioner {
                 'settings' => [
                     'endpoint' => $chat,
                     'model' => 'wunderbyte-privat-mini',
-                    'systeminstruction' => 'Act as a compact planner and return a structured routing decision as plain JSON.',
+                    'systeminstruction' => '',
                     // Greedy: the planner is a routing + JSON task — determinism kills run-to-run flips.
                     'temperature' => 0.0,
                 ],
@@ -570,7 +568,7 @@ class trial_provisioner {
                 'settings' => [
                     'endpoint' => $chat,
                     'model' => 'wunderbyte-privat',
-                    'systeminstruction' => self::CONSTRUCT_INSTRUCTION,
+                    'systeminstruction' => '',
                     'temperature' => 0.0,
                 ],
             ],
@@ -580,7 +578,7 @@ class trial_provisioner {
                 'settings' => [
                     'endpoint' => $chat,
                     'model' => 'wunderbyte-privat',
-                    'systeminstruction' => 'Compose the final user-facing response in the requested language.',
+                    'systeminstruction' => '',
                     // Mildly warm for natural prose, but low enough to stay faithful to the planner result.
                     'temperature' => 0.3,
                 ],

@@ -414,11 +414,10 @@ final class phase_model_tiers_test extends abstract_agent_testcase {
             $config[self::DECIDE]['settings']['endpoint'],
             $config[self::CONSTRUCT]['settings']['endpoint']
         );
-        $this->assertSame(
-            $config[self::DECIDE]['settings']['systeminstruction'],
-            $config[self::CONSTRUCT]['settings']['systeminstruction'],
-            'only the model differs between the planner tiers'
-        );
+        // No action carries an instruction of its own: every phase brings its complete prompt.
+        foreach ($config as $actionclass => $entry) {
+            $this->assertSame('', (string)($entry['settings']['systeminstruction'] ?? ''), $actionclass);
+        }
     }
 
     /**
