@@ -60,6 +60,26 @@ trait scripted_llm_trait {
     protected array $scriptedphases = [];
 
     /**
+     * Every scripted call in call order as [phase, actionclass]: 'N' query normalizer, 'S' selector,
+     * 'C' constructor, 'Y' synchronizer, 'O' any other call. Lets a test state which provider action
+     * each phase used.
+     *
+     * @var array
+     */
+    protected array $scriptedactions = [];
+
+    /**
+     * The planner action classes: the selector's and the constructor's own (phase model tiers).
+     * A static property, not a constant: constants in traits need PHP 8.2.
+     *
+     * @var string[]
+     */
+    private static array $planneractionclasses = [
+        'aiprovider_wunderbyte\\aiactions\\planner_decide',
+        'aiprovider_wunderbyte\\aiactions\\planner_construct',
+    ];
+
+    /**
      * Engine marker that only a constructor prompt carries: the handoff of the selection phase.
      * Verified on the corpus 2026-09-25: 137 of 137 constructor prompts, 0 of 187 selector prompts.
      * A static property, not a constant: constants in traits need PHP 8.2 and Moodle 4.5 still runs on 8.1.
@@ -92,6 +112,7 @@ trait scripted_llm_trait {
         $this->scriptedconstructorqueue = array_values(array_map($normalize, $constructorscript));
         $this->scriptedsyncqueue = array_values(array_map($normalize, $syncscript));
         $this->scriptedphases = [];
+        $this->scriptedactions = [];
 
         $sufficient = json_encode([
             'response_type' => 'sufficient',
@@ -100,22 +121,31 @@ trait scripted_llm_trait {
             'user_lang' => 'en',
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-        llm_call_service::set_test_responder(function (string $actionclass, string $prompt) use ($sufficient) {
-            if ($actionclass === wb_action_names::PLANNER_DECIDE) {
+        $responder = function (string $actionclass, string $prompt, string $source = '') use ($sufficient) {
+            if (self::is_scripted_normalizer_call($source)) {
+                $this->scriptedactions[] = ['N', $actionclass];
+                return $sufficient;
+            }
+            if (self::is_scripted_planner_action($actionclass)) {
                 $this->scriptedplannerprompts[] = $prompt;
                 if (strpos($prompt, self::$constructorpromptmarker) !== false) {
                     $this->scriptedphases[] = 'C';
+                    $this->scriptedactions[] = ['C', $actionclass];
                     return !empty($this->scriptedconstructorqueue) ? array_shift($this->scriptedconstructorqueue) : $sufficient;
                 }
                 $this->scriptedphases[] = 'S';
+                $this->scriptedactions[] = ['S', $actionclass];
                 return !empty($this->scriptedselectorqueue) ? array_shift($this->scriptedselectorqueue) : $sufficient;
             }
             if ($actionclass === wb_action_names::GENERATE_AGENT_REPLY) {
                 $this->scriptedsyncprompts[] = $prompt;
+                $this->scriptedactions[] = ['Y', $actionclass];
                 return !empty($this->scriptedsyncqueue) ? array_shift($this->scriptedsyncqueue) : $sufficient;
             }
+            $this->scriptedactions[] = ['O', $actionclass];
             return $sufficient;
-        });
+        };
+        llm_call_service::set_test_responder($responder);
 
         llm_call_service::set_test_embedding(array_fill(0, 8, 0.01));
     }
@@ -160,11 +190,20 @@ trait scripted_llm_trait {
             'user_lang' => 'en',
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-        llm_call_service::set_test_responder(function (string $actionclass, string $prompt) use ($sufficient) {
-            if ($actionclass === wb_action_names::PLANNER_DECIDE) {
+        $responder = function (string $actionclass, string $prompt, string $source = '') use ($sufficient) {
+            if (self::is_scripted_normalizer_call($source)) {
+                // The query normalizer is not a planner turn: it never consumes a scripted planner answer.
+                $this->scriptedactions[] = ['N', $actionclass];
+                return $sufficient;
+            }
+            if (self::is_scripted_planner_action($actionclass)) {
                 // Record the prompt so tests can assert prompt contracts (e.g. the
                 // pending-step block the selector was shown — thread 589 regression).
                 $this->scriptedplannerprompts[] = $prompt;
+                $this->scriptedactions[] = [
+                    strpos($prompt, self::$constructorpromptmarker) !== false ? 'C' : 'S',
+                    $actionclass,
+                ];
                 if (!empty($this->scriptedplannerqueue)) {
                     return array_shift($this->scriptedplannerqueue);
                 }
@@ -172,14 +211,17 @@ trait scripted_llm_trait {
             }
             if ($actionclass === wb_action_names::GENERATE_AGENT_REPLY) {
                 $this->scriptedsyncprompts[] = $prompt;
+                $this->scriptedactions[] = ['Y', $actionclass];
                 if (!empty($this->scriptedsyncqueue)) {
                     return array_shift($this->scriptedsyncqueue);
                 }
                 return $sufficient;
             }
             // The generate_text and summarise_text calls.
+            $this->scriptedactions[] = ['O', $actionclass];
             return $sufficient;
-        });
+        };
+        llm_call_service::set_test_responder($responder);
 
         // A tiny fixed vector; discovery still runs, but the scripted selector ignores its result.
         llm_call_service::set_test_embedding(array_fill(0, 8, 0.01));
@@ -200,6 +242,27 @@ trait scripted_llm_trait {
         $this->scriptedselectorqueue = [];
         $this->scriptedconstructorqueue = [];
         $this->scriptedphases = [];
+        $this->scriptedactions = [];
+    }
+
+    /**
+     * Whether a call goes to one of the planner actions (selector or constructor).
+     *
+     * @param string $actionclass
+     * @return bool
+     */
+    private static function is_scripted_planner_action(string $actionclass): bool {
+        return in_array(ltrim($actionclass, '\\'), self::$planneractionclasses, true);
+    }
+
+    /**
+     * Whether a call is the discovery query normalizer, told apart by its debug source step (st=qnorm).
+     *
+     * @param string $source
+     * @return bool
+     */
+    private static function is_scripted_normalizer_call(string $source): bool {
+        return strpos($source, '|st=qnorm|') !== false;
     }
 
     /**

@@ -341,6 +341,16 @@ abstract class abstract_agent_testcase extends agent_testcase_parent {
                     'systeminstruction' => 'Act as a compact planner and return a structured routing decision as plain JSON.',
                 ],
             ],
+            // The constructor's own action on the larger model (phase model tiers). A provider version without the
+            // action ignores the entry, and the constructor then falls back to planner_decide.
+            'aiprovider_wunderbyte\\aiactions\\planner_construct' => [
+                'enabled' => true,
+                'settings' => [
+                    'model' => $model,
+                    'endpoint' => $chatendpoint,
+                    'systeminstruction' => 'Build the parameters of the selected skill and return them as plain JSON.',
+                ],
+            ],
             'aiprovider_wunderbyte\\aiactions\\generate_agent_reply' => [
                 'enabled' => true,
                 'settings' => [
