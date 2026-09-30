@@ -73,7 +73,7 @@ class llm_call_service {
      *
      * TEST-ONLY. Production never calls this, so the static stays null and invoke_for_context()
      * always takes the real core_ai path. Installing it outside a test run is a coding error.
-     * The responder receives ($actionclass, $prompt) and returns either the raw generated content
+     * The responder receives ($actionclass, $prompt, $source) and returns either the raw generated content
      * the phase would otherwise receive from the provider, or a structured provider result
      * (keys content, success, errorcode, errormessage, finishreason) to script provider failures
      * and truncated output.
@@ -127,7 +127,7 @@ class llm_call_service {
         // TEST-ONLY deterministic path: return scripted content instead of calling the provider,
         // so run_loop (selector/constructor/synchronizer) can be driven without a live LLM.
         if (self::$testresponder !== null) {
-            $scripted = (self::$testresponder)($actionclass, $prompt);
+            $scripted = (self::$testresponder)($actionclass, $prompt, $source);
             $scripted = is_array($scripted) ? $scripted : ['content' => (string)$scripted];
             $scriptedcontent = (string)($scripted['content'] ?? '');
             $scriptedsuccess = (bool)($scripted['success'] ?? true);
@@ -412,6 +412,7 @@ class llm_call_service {
         $supported = [
             self::WB_ACTION_GENERATE_AGENT_REPLY,
             self::WB_ACTION_PLANNER_DECIDE,
+            wb_action_names::PLANNER_CONSTRUCT,
         ];
         $normalizedsupported = array_map(static fn(string $fqcn): string => ltrim($fqcn, '\\'), $supported);
         if (!in_array($normalizedactionclass, $normalizedsupported, true)) {

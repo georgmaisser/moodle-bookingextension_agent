@@ -34,12 +34,29 @@ namespace bookingextension_agent\local\wizard;
  * derives from the same value.
  */
 class wb_action_names {
-    /** @var string The planner-decide (generate_text) action. */
+    /** @var string The planner-decide action: the selector and the query normalizer (small model). */
     public const PLANNER_DECIDE = 'aiprovider_wunderbyte\\aiactions\\planner_decide';
+
+    /** @var string The planner-construct action: the constructor (large model). */
+    public const PLANNER_CONSTRUCT = 'aiprovider_wunderbyte\\aiactions\\planner_construct';
 
     /** @var string The generate-agent-reply (synchronizer) action. */
     public const GENERATE_AGENT_REPLY = 'aiprovider_wunderbyte\\aiactions\\generate_agent_reply';
 
     /** @var string The generate-embeddings action. */
     public const GENERATE_EMBEDDINGS = 'aiprovider_wunderbyte\\aiactions\\generate_embeddings';
+
+    /**
+     * Whether an action class is one of the Wunderbyte planner actions (selector or constructor).
+     *
+     * Both planner actions get the same prompt bundle and catalog handling; only the model behind them differs.
+     * Every identity check on a planner action goes through here, so a second planner action cannot drift.
+     *
+     * @param string $actionclass
+     * @return bool
+     */
+    public static function is_planner_action(string $actionclass): bool {
+        $actionclass = ltrim($actionclass, '\\');
+        return $actionclass === self::PLANNER_DECIDE || $actionclass === self::PLANNER_CONSTRUCT;
+    }
 }

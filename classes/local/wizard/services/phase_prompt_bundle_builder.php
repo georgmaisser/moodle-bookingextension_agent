@@ -40,9 +40,6 @@ class phase_prompt_bundle_builder {
     /** Wunderbyte final reply action class name. */
     private const WB_ACTION_GENERATE_AGENT_REPLY = wb_action_names::GENERATE_AGENT_REPLY;
 
-    /** Wunderbyte planner action class name. */
-    private const WB_ACTION_PLANNER_DECIDE = wb_action_names::PLANNER_DECIDE;
-
     /** @var skill_registry */
     private skill_registry $registry;
 
@@ -182,7 +179,7 @@ class phase_prompt_bundle_builder {
      */
     private function is_planner_action(string $actionclass): bool {
         return $actionclass === \core_ai\aiactions\summarise_text::class
-            || $actionclass === self::WB_ACTION_PLANNER_DECIDE;
+            || wb_action_names::is_planner_action($actionclass);
     }
 
     /**

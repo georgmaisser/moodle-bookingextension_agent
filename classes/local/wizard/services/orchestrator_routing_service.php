@@ -19,6 +19,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wizard\services;
 
 use bookingextension_agent\local\wizard\config\runtime_feature_flags;
+use bookingextension_agent\local\wizard\wb_action_names;
 use core\context;
 use core_ai\manager as ai_manager;
 use core_ai\aiactions\explain_text;
@@ -43,8 +44,11 @@ class orchestrator_routing_service {
     /** Parameter construction planner phase. */
     public const PHASE_PARAMETER_CONSTRUCTION = 'parameter_construction';
 
-    /** @var string */
+    /** @var string Planner action of the selector (small model). */
     private string $wbplanneraction;
+
+    /** @var string Planner action of the constructor (large model); falls back to $wbplanneraction. */
+    private string $wbconstructaction;
 
     /**
      * Read-only runtime feature-flag snapshot used by orchestration consumers.
@@ -58,12 +62,32 @@ class orchestrator_routing_service {
     /**
      * Constructor.
      *
-     * @param string $wbplanneraction
+     * @param string $wbplanneraction Planner action of the selector.
+     * @param string $wbconstructaction Planner action of the constructor.
      */
     public function __construct(
-        string $wbplanneraction
+        string $wbplanneraction,
+        string $wbconstructaction = wb_action_names::PLANNER_CONSTRUCT
     ) {
         $this->wbplanneraction = $wbplanneraction;
+        $this->wbconstructaction = $wbconstructaction;
+    }
+
+    /**
+     * Action class of the discovery query normalizer: the small planner action when available, else generate_text.
+     *
+     * @param ai_manager $manager
+     * @return string
+     */
+    public function resolve_query_normalizer_action_class(ai_manager $manager): string {
+        try {
+            if ($manager->is_action_available($this->wbplanneraction)) {
+                return $this->wbplanneraction;
+            }
+        } catch (\Throwable $e) {
+            debugging('orchestrator_routing_service: normalizer routing failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
+        }
+        return generate_text::class;
     }
 
     /**
@@ -127,17 +151,21 @@ class orchestrator_routing_service {
      * @return array{actionclass:string, routepolicy:string, routingfallback:bool}
      */
     private function resolve_construction_action_class(ai_manager $manager, context $context): array {
-        try {
-            if ($manager->is_action_available($this->wbplanneraction)) {
-                return [
-                    'actionclass' => $this->wbplanneraction,
-                    'routepolicy' => $this->build_phase_route_policy(self::PHASE_PARAMETER_CONSTRUCTION, 'wunderbyte'),
-                    'routingfallback' => false,
-                ];
+        // The constructor's own action first (large model), else the selector's planner action. Each check stands
+        // alone, so a provider without the constructor action still routes to planner_decide.
+        foreach ([$this->wbconstructaction, $this->wbplanneraction] as $planneraction) {
+            try {
+                if ($manager->is_action_available($planneraction)) {
+                    return [
+                        'actionclass' => $planneraction,
+                        'routepolicy' => $this->build_phase_route_policy(self::PHASE_PARAMETER_CONSTRUCTION, 'wunderbyte'),
+                        'routingfallback' => false,
+                    ];
+                }
+            } catch (\Throwable $e) {
+                // Best-effort: fall through to the next available action below.
+                debugging('orchestrator_routing_service: construction-phase routing failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
             }
-        } catch (\Throwable $e) {
-            // Best-effort: fall through to the next available action below.
-            debugging('orchestrator_routing_service: construction-phase routing failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
         }
 
         if ($this->is_action_available_in_context($manager, $context, summarise_text::class)) {
@@ -214,6 +242,7 @@ class orchestrator_routing_service {
             summarise_text::class => 'sum',
             explain_text::class => 'exp',
             $this->wbplanneraction => 'wpl',
+            $this->wbconstructaction => 'wpc',
         ];
 
         $normalizedphase = $this->normalize_phase($phase);

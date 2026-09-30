@@ -106,6 +106,7 @@ class provider_status_service {
                 summarise_text::class,
                 explain_text::class,
                 self::WB_ACTION_PLANNER_DECIDE,
+                wb_action_names::PLANNER_CONSTRUCT,
                 self::WB_ACTION_GENERATE_AGENT_REPLY,
             ];
             foreach ($candidateactions as $candidate) {

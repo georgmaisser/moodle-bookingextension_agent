@@ -159,7 +159,8 @@ class orchestrator {
         $this->completedhistorysvc = new completed_command_history_service($store);
         $this->assistantsummariesvc = new assistant_state_guidance_service();
         $this->orchestratorroutingsvc = new orchestrator_routing_service(
-            self::WB_ACTION_PLANNER_DECIDE
+            self::WB_ACTION_PLANNER_DECIDE,
+            wb_action_names::PLANNER_CONSTRUCT
         );
         $this->plannercatalogsvc = new planner_catalog_service($this->assistantsummariesvc);
         $this->runtimecontextsvc = new runtime_context_block_builder(
@@ -592,7 +593,7 @@ class orchestrator {
     public static function get_default_initial_prompt_template_for_action(string $actionclass): string {
         if (
             $actionclass === summarise_text::class
-            || $actionclass === self::WB_ACTION_PLANNER_DECIDE
+            || wb_action_names::is_planner_action($actionclass)
         ) {
             return <<<'PROMPT'
 You are the SELECTOR of a Moodle assistant.

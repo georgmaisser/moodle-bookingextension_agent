@@ -27,6 +27,11 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wizard\services\llm;
 
 use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\services\orchestrator_routing_service;
+use bookingextension_agent\local\wizard\wb_action_names;
+use core\di;
+use core_ai\aiactions\generate_text;
+use core_ai\manager as ai_manager;
 
 /**
  * Translates the discovery query to English before it is embedded (SKILL_REWORK.md §5.7, "Weg B").
@@ -91,19 +96,23 @@ class query_english_normalizer {
             $protected = [];
         }
 
-        // Uses the configured planner/chat model (core_ai generate_text) — no model name hardcoded.
+        // Runs on the small planner action (flowchart QNORM), core generate_text without it. No model name is
+        // hardcoded: the provider instance decides which model serves the action.
         $prompt = "You are a translation function inside a search system. Translate the text after 'TEXT:' "
             . "into English. Output ONLY the English translation as plain text — no quotes, no labels, no "
             . "commentary. If it is already English, output it unchanged. Keep proper names and numbers "
             . "verbatim, and keep any <<KEEP...>> token EXACTLY as-is.\n\nTEXT:\n" . $placeheld;
 
         try {
+            $actionclass = (new orchestrator_routing_service(wb_action_names::PLANNER_DECIDE))
+                ->resolve_query_normalizer_action_class(di::get(ai_manager::class));
             $result = $this->llm->invoke_for_context(
                 $threadid,
                 $contextid,
                 $userid,
-                'orc|p=disc|st=qnorm|ac=txt|rt=wb',
-                $prompt
+                'orc|p=disc|st=qnorm|ac=' . ($actionclass === generate_text::class ? 'txt' : 'wpl') . '|rt=wb',
+                $prompt,
+                $actionclass
             );
         } catch (\Throwable $e) {
             return $query;

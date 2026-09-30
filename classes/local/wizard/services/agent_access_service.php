@@ -137,6 +137,7 @@ class agent_access_service {
 
         $actions = [
             self::WB_ACTION_PLANNER_DECIDE,
+            wb_action_names::PLANNER_CONSTRUCT,
             self::WB_ACTION_GENERATE_AGENT_REPLY,
             summarise_text::class,
             generate_text::class,

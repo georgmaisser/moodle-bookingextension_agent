@@ -66,9 +66,6 @@ use bookingextension_agent\local\wizard\wb_action_names;
 class discovery_phase_service {
     use planner_phase_prompt_trait;
 
-    /** Wunderbyte planner decide action class name (mirrors orchestrator private const). */
-    private const WB_ACTION_PLANNER_DECIDE = wb_action_names::PLANNER_DECIDE;
-
     /** @var conversation_store */
     private conversation_store $store;
 
@@ -212,7 +209,7 @@ class discovery_phase_service {
 
             $iswunderbyteplanner =
                 $this->routingsvc->is_wunderbyte_routepolicy((string)($routing['routepolicy'] ?? ''))
-                && $actionclass === self::WB_ACTION_PLANNER_DECIDE;
+                && wb_action_names::is_planner_action($actionclass);
 
             if ($iswunderbyteplanner) {
                 $embeddingstatus = 'check';
