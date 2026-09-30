@@ -68,6 +68,8 @@ class search_users_skill extends core_skill_base implements
             'description' => 'Search users and return resolved candidates with profile data, '
                 . 'enrolled courses, roles, and profile URL. Use this first when a '
                 . 'follow-up skill needs a concrete user identity.',
+            'is' => 'Other people: find a user and see their profile, roles and enrolled courses.',
+            'not' => 'The requester themselves (get_current_user).',
             'readonly' => $this->is_read_only(),
             'fallback_skillcall_string_key' => 'ai_status_skillcall_booking_search_users',
             'example_utterances' => [

@@ -55,7 +55,11 @@ class get_current_user_skill extends core_skill_base implements
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'Get information about the current executor user.',
+            'description' => 'The requester\'s own account: identity, e-mail, roles and the courses they are enrolled in. '
+                . 'Use this when the user asks about themselves - who they are, what their role is, or which courses they '
+                . 'are enrolled in.',
+            'is' => 'The requester themselves: own profile, roles and enrolled courses.',
+            'not' => 'Another person (search_users).',
             'readonly' => $this->is_read_only(),
             'example_utterances' => [
                 'who am I',
@@ -63,6 +67,9 @@ class get_current_user_skill extends core_skill_base implements
                 'show my own profile',
                 'what is my role here',
                 'what account am I logged in as',
+                'which courses am I enrolled in',
+                'where am I enrolled',
+                'list my courses',
             ],
             'properties' => [
                 'outputlang' => [
@@ -108,11 +115,11 @@ class get_current_user_skill extends core_skill_base implements
         return [
             [
                 'id' => 'core.get_current_user_request',
-                'description' => 'User asks about their current account or profile information.',
+                'description' => 'User asks about their own account, their roles, or which courses they are enrolled in.',
                 'examples' => [
                     'Who am I?',
                     'Show my profile',
-                    'Show my username',
+                    'Which courses am I enrolled in?',
                 ],
             ],
         ];
