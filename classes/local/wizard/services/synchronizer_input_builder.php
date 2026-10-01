@@ -369,6 +369,27 @@ class synchronizer_input_builder {
     }
 
     /**
+     * Whether a skill result with status executed exists in this turn (results[] or any loop step).
+     *
+     * @param array $result
+     * @return bool
+     */
+    private function turn_has_executed_result(array $result): bool {
+        $rows = (array)($result['results'] ?? []);
+        foreach ((array)($result['loop_results'] ?? []) as $step) {
+            if (is_array($step)) {
+                $rows = array_merge($rows, (array)($step['results'] ?? []));
+            }
+        }
+        foreach ($rows as $row) {
+            if (is_array($row) && trim((string)($row['status'] ?? '')) === 'executed') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Build a compact source result observation for finalization.
      *
      * @param array $result
@@ -388,6 +409,13 @@ class synchronizer_input_builder {
         // will keep this in mind" without running remember, and the reply claimed the preference was stored.
         // Questions and confirmation requests stay FINAL_SOURCE_RESULT: they are the pending question to relay.
         if ($responsetype === 'sufficient') {
+            // Thread 23502 (2026-09-30): with a skill result in the turn the planner's text is no observation at all.
+            // gpt-oss copied "Hier ist die Uebersicht der verfuegbaren Skills." word for word and never rendered the
+            // result standing next to it (A/B on the exact live prompt: 0/3 with the text, 3/3 without; three threads).
+            // The facts are the executed results; the planner text is kept only when nothing ran (REM-2).
+            if ($this->turn_has_executed_result($result)) {
+                return '';
+            }
             $normalizedplanner = trim(preg_replace('/\s+/', ' ', $message) ?? $message);
             return "PLANNER_TEXT (not a result)\nmessage=" . substr($normalizedplanner, 0, 600);
         }

@@ -62,6 +62,9 @@ class synchronizer_prompt_builder {
         return self::CONTINUATION_NONE;
     }
 
+    /** The line before the first observation block: the observations are new to the user (threads 23502/23481). */
+    public const OBSERVATIONS_UNSEEN_LINE = 'The user has not seen the observations yet.';
+
     /**
      * Build synchronizer system prompt.
      *
@@ -167,11 +170,17 @@ class synchronizer_prompt_builder {
 
         // Observations come AFTER the state ledgers, closest to [ASSISTANT]: the template's rule that the
         // observations are the facts is then reinforced by recency instead of being contradicted by it.
+        // Threads 23502/23481/23506 (2026-09-30): nothing said that the user has not seen them, and gpt-oss replied
+        // "I have already listed them". The sentence stands directly before the first block - in the rules or in the
+        // turn-state line it changed nothing (A/B on the exact live prompts), here it did.
         $observationnumber = 1;
         foreach ($observations as $observation) {
             $trimmed = trim((string)$observation);
             if ($trimmed === '') {
                 continue;
+            }
+            if ($observationnumber === 1) {
+                $parts[] = self::OBSERVATIONS_UNSEEN_LINE;
             }
             $parts[] = "[OBSERVATION {$observationnumber}]\n{$trimmed}";
             $observationnumber++;
