@@ -39,6 +39,50 @@ final class synchronizer_input_contract_test extends TestCase {
         parent::setUp();
     }
     /**
+     * Thread 23502 (2026-09-30): wizard.list_skills ran and its result stood in OBSERVATION 1, the selector's second pass
+     * said "Hier ist die Uebersicht der verfuegbaren Skills." and gpt-oss copied that PLANNER_TEXT word for word instead
+     * of rendering the result (A/B on the exact live prompt: 0/3 with the planner text, 3/3 without). With an executed
+     * result in the turn the planner text is no observation; the skill results are the facts (REM-2 stays: without a
+     * result the planner text is the only information and is kept, see frozen_prompts_test).
+     */
+    public function test_planner_text_is_dropped_when_a_skill_result_exists(): void {
+        $builder = new synchronizer_input_builder();
+        $result = [
+            'response_type' => 'sufficient',
+            'message' => 'Hier ist die Uebersicht der verfuegbaren Skills.',
+            'results' => [],
+            'loop_results' => [[
+                'step' => 0,
+                'tool_calls' => [['skill' => 'wizard.list_skills', 'version' => 1, 'input' => []]],
+                'results' => [[
+                    'status' => 'executed', 'skill' => 'wizard.list_skills', 'detail' => 'names', 'observation_full' => '## a',
+                ]],
+                'observation' => "Step 1: ## bookingextension/agent [readonly]\n- core.get_current_user",
+            ]],
+        ];
+        $observations = $builder->build_observations($result);
+
+        $joined = implode("\n---\n", $observations);
+        $this->assertStringContainsString('core.get_current_user', $joined, 'the skill result stays');
+        $this->assertStringNotContainsString('PLANNER_TEXT', $joined);
+        $this->assertStringNotContainsString('Uebersicht der verfuegbaren', $joined);
+
+        // Thread 23481 turn 2: the executed result lives in results[], the step observation is empty.
+        $result['loop_results'] = [];
+        $result['results'] = [['status' => 'executed', 'skill' => 'mod_booking.search_options', 'detail' => '46 Optionen']];
+        $joined = implode("\n---\n", $builder->build_observations($result));
+        $this->assertStringNotContainsString('PLANNER_TEXT', $joined);
+
+        // REM-2: nothing ran - the planner text is kept, marked as not a result.
+        $result['results'] = [['status' => 'failed', 'skill' => 'wizard.remember', 'detail' => 'x']];
+        $joined = implode("\n---\n", $builder->build_observations($result));
+        $this->assertStringContainsString('PLANNER_TEXT (not a result)', $joined);
+        unset($result['results']);
+        $joined = implode("\n---\n", $builder->build_observations($result));
+        $this->assertStringContainsString('PLANNER_TEXT (not a result)', $joined);
+    }
+
+    /**
      * PHASE_TRACE should keep only minimal telemetry and exclude discovery payloads.
      */
     public function test_phase_trace_excludes_skill_discovery_payload(): void {

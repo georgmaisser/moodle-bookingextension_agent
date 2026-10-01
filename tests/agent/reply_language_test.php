@@ -173,6 +173,25 @@ final class reply_language_test extends \advanced_testcase {
     }
 
     /**
+     * Threads 23502/23481/23506 (2026-09-30): nothing in the synchronizer prompt said that the user has not seen the
+     * observations; the runtime ledger even said "[already shown in OBSERVATION blocks above]". gpt-oss answered
+     * "I have already listed them". The sentence stands directly before the first observation block (measured: in the
+     * rules or in the turn-state line it changed nothing, 2/2 stubs; before the block, 2/2 full lists).
+     */
+    public function test_the_observations_are_marked_as_unseen_by_the_user(): void {
+        $prompt = (new synchronizer_prompt_builder())
+            ->build_prompt('SYS', [], ['first fact', 'second fact'], '', 'state', 'none', [], [], 'de');
+        $sentence = synchronizer_prompt_builder::OBSERVATIONS_UNSEEN_LINE;
+        $this->assertSame(1, substr_count($prompt, $sentence));
+        $this->assertStringContainsString($sentence . "\n\n[OBSERVATION 1]\nfirst fact", $prompt);
+        $this->assertStringContainsString("[OBSERVATION 2]\nsecond fact", $prompt);
+        $this->assertLessThan(strpos($prompt, $sentence), strpos($prompt, '[SYSTEM_RUNTIME_STATE]'));
+
+        $none = (new synchronizer_prompt_builder())->build_prompt('SYS', [], [], '', '', 'none', [], [], 'de');
+        $this->assertStringNotContainsString($sentence, $none, 'no observations, nothing to mark');
+    }
+
+    /**
      * Non-success path: no usable code and no thread language - no line, the prompt is as before.
      */
     public function test_without_a_language_there_is_no_line(): void {

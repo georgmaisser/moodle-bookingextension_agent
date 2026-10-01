@@ -101,7 +101,10 @@ final class model_text_is_never_remasked_test extends abstract_agent_testcase {
         $this->chat('Wie funktioniert die Warteliste?', (int)$threadid, $store, $runtime);
 
         $sync = implode("\n", $this->scriptedsyncprompts);
-        $this->assertStringContainsString('Die Doku sagt: ' . self::QUOTE, $sync, 'the selector text as written');
+        // Since thread 23502 (2026-09-30) the selector's "sufficient" text is no observation once a skill result exists
+        // in the turn (synchronizer_input_contract_test); what reaches the synchronizer is never a re-masked text.
+        $this->assertStringNotContainsString('PLANNER_TEXT', $sync, 'the skill result is the fact, not the planner text');
+        $this->assertStringContainsString(self::QUOTE, $sync, 'the skill observation as written');
         $this->assertDoesNotMatchRegularExpression('/ANON_USER_\d+_firstname\. number/', $sync);
 
         $stored = $DB->get_records(
