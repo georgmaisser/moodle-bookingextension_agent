@@ -274,4 +274,130 @@ final class diagnose_permissions_skill_test extends advanced_testcase {
         $this->assertSame('error', $result['status']);
         $this->assertSame('permission_denied', $result['error_class']);
     }
+
+    /**
+     * Two courses: the person is a student in B, the question is asked from A, without a course.
+     *
+     * @return array{manager:\stdClass,student:\stdClass,coursea:\stdClass,courseb:\stdClass}
+     */
+    private function seed_student_elsewhere(): array {
+        $this->resetAfterTest();
+        $coursea = $this->getDataGenerator()->create_course(['fullname' => 'Course A']);
+        $courseb = $this->getDataGenerator()->create_course(['fullname' => 'Biologie']);
+        $student = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($student->id, $courseb->id, 'student');
+        $manager = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->role_assign(
+            (int)$this->getDataGenerator()->create_role(['shortname' => 'reviewer']),
+            $manager->id,
+            \context_system::instance()->id
+        );
+        global $DB;
+        $roleid = (int)$DB->get_field('role', 'id', ['shortname' => 'reviewer']);
+        assign_capability('moodle/role:review', CAP_ALLOW, $roleid, \context_system::instance()->id, true);
+        return ['manager' => $manager, 'student' => $student, 'coursea' => $coursea, 'courseb' => $courseb];
+    }
+
+    /**
+     * Role mode without a course names the chain it checked and the roles the person holds elsewhere.
+     */
+    public function test_role_mode_names_the_chain_and_the_roles_elsewhere(): void {
+        ['manager' => $manager, 'student' => $student, 'coursea' => $coursea, 'courseb' => $courseb]
+            = $this->seed_student_elsewhere();
+        $this->setUser($manager);
+
+        $result = (new diagnose_permissions_skill())->execute(
+            ['userid' => (int)$student->id],
+            (int)context_course::instance($coursea->id)->id,
+            (int)$manager->id
+        );
+
+        $this->assertSame('executed', $result['status']);
+        $observation = (string)$result['observation_full'];
+        $this->assertStringContainsString('No role assignments along this chain', $observation);
+        $this->assertStringContainsString('Checked: System, ', $observation);
+        $this->assertStringContainsString('Course: Course A', $observation);
+        $this->assertStringContainsString('not part of this chain', $observation);
+        $this->assertStringContainsString('Elsewhere on this site: Course: Biologie', $observation);
+        $this->assertStringContainsString('Roles: student', $observation);
+        $this->assertStringNotContainsString('no roles along this context chain', $observation);
+
+        $elsewhere = array_values(array_filter(
+            (array)$result['checklist_rows'],
+            static fn(array $r): bool => str_starts_with((string)$r['check'], 'Elsewhere')
+        ));
+        $this->assertCount(1, $elsewhere);
+        $this->assertSame('ok', $elsewhere[0]['status']);
+        $this->assertStringContainsString('Biologie', (string)$elsewhere[0]['check']);
+        $this->assertSame('Roles: student', (string)$elsewhere[0]['finding']);
+        $this->assertStringNotContainsString('Biologie', (string)$result['checklist_title']);
+    }
+
+    /**
+     * A requester who may not review roles in the other course gets a count, never the course.
+     */
+    public function test_roles_elsewhere_are_counted_where_the_requester_may_not_review(): void {
+        ['student' => $student, 'coursea' => $coursea, 'courseb' => $courseb] = $this->seed_student_elsewhere();
+        $teacher = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($teacher->id, $coursea->id, 'editingteacher');
+        $this->getDataGenerator()->enrol_user($student->id, $coursea->id, 'student');
+        $this->setUser($teacher);
+
+        $result = (new diagnose_permissions_skill())->execute(
+            ['userid' => (int)$student->id],
+            (int)context_course::instance($coursea->id)->id,
+            (int)$teacher->id
+        );
+
+        $this->assertSame('executed', $result['status']);
+        $observation = (string)$result['observation_full'];
+        $this->assertStringContainsString('Course: Course A — Roles: student', $observation);
+        $this->assertStringContainsString('1 more role assignment in a context you may not review', $observation);
+        $this->assertStringNotContainsString('Biologie', $observation);
+    }
+
+    /**
+     * A person asking about themselves sees their own roles elsewhere without a review capability.
+     */
+    public function test_self_sees_own_roles_elsewhere(): void {
+        ['student' => $student, 'coursea' => $coursea] = $this->seed_student_elsewhere();
+        $this->getDataGenerator()->enrol_user($student->id, $coursea->id, 'student');
+        $this->setUser($student);
+
+        $result = (new diagnose_permissions_skill())->execute(
+            [],
+            (int)context_course::instance($coursea->id)->id,
+            (int)$student->id
+        );
+
+        $this->assertStringContainsString(
+            'Elsewhere on this site: Course: Biologie — Roles: student',
+            $result['observation_full']
+        );
+    }
+
+    /**
+     * A role at another person's user context is listed without that person's name.
+     */
+    public function test_role_at_a_user_context_names_no_third_person(): void {
+        ['manager' => $manager, 'student' => $student, 'coursea' => $coursea] = $this->seed_student_elsewhere();
+        $child = $this->getDataGenerator()->create_user(['firstname' => 'Thirdperson', 'lastname' => 'Secret']);
+        $this->getDataGenerator()->role_assign(
+            (int)$this->getDataGenerator()->create_role(['shortname' => 'parent']),
+            $student->id,
+            \context_user::instance($child->id)->id
+        );
+        $this->setUser($manager);
+
+        $result = (new diagnose_permissions_skill())->execute(
+            ['userid' => (int)$student->id],
+            (int)context_course::instance($coursea->id)->id,
+            (int)$manager->id
+        );
+
+        $observation = (string)$result['observation_full'];
+        $this->assertStringContainsString('Elsewhere on this site: a user profile — Roles: parent', $observation);
+        $this->assertStringNotContainsString('Thirdperson', $observation);
+        $this->assertStringNotContainsString('Secret', json_encode($result['checklist_rows']));
+    }
 }
