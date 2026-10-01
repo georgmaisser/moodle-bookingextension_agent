@@ -258,7 +258,7 @@ class privacy_anonymizer {
      */
     public function precheck_user_message(int $threadid, string $message): array {
         $start = microtime(true);
-        $sanitized = $message;
+        $sanitized = self::valid_utf8($message);
         $emailcount = 0;
         $namecount = 0;
 
@@ -359,6 +359,7 @@ class privacy_anonymizer {
         if (!is_array($entries)) {
             $entries = [];
         }
+        $message = self::valid_utf8($message);
 
         $replacedcount = 0;
         $redactedcount = 0;
@@ -751,6 +752,23 @@ class privacy_anonymizer {
     }
 
     /**
+     * Drop invalid UTF-8 bytes, keep everything else (fix_utf8() returns false on a cut-off trailing sequence).
+     *
+     * @param string $text
+     * @return string
+     */
+    private static function valid_utf8(string $text): string {
+        if ($text === '' || preg_match('//u', $text) === 1) {
+            return $text;
+        }
+        $subst = mb_substitute_character();
+        mb_substitute_character('none');
+        $clean = mb_convert_encoding($text, 'UTF-8', 'UTF-8');
+        mb_substitute_character($subst);
+        return is_string($clean) ? $clean : '';
+    }
+
+    /**
      * Anonymize a free-form string for backend LLM use.
      *
      * @param string $message
@@ -762,6 +780,9 @@ class privacy_anonymizer {
         if ($message === '') {
             return $message;
         }
+        // A provider that cuts its output mid-character delivers invalid UTF-8; the /u regexes below
+        // would return null and the next call would fail with a TypeError (thread 2095).
+        $message = self::valid_utf8($message);
 
         $normalizedfield = core_text::strtolower(trim($fieldkey));
 
