@@ -43,6 +43,9 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
     /** Skill name. */
     public const SKILL_NAME = 'core.diagnose_permissions';
 
+    /** How many contexts outside the chain are named before the rest is counted. */
+    private const ELSEWHERE_MAX = 8;
+
     /** Cap on suggested capability names when the given one is unknown. */
     private const MAX_SUGGESTIONS = 8;
 
@@ -390,12 +393,14 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
     ): array {
         $rows = [];
         $chainids = array_reverse($targetcontext->get_parent_context_ids(true)); // System → … → target.
+        $chainnames = [];
         $anyrole = false;
         foreach ($chainids as $ctxid) {
             $ctx = context::instance_by_id((int)$ctxid, IGNORE_MISSING);
             if (!$ctx) {
                 continue;
             }
+            $chainnames[] = $ctx->get_context_name();
             $roles = get_user_roles($ctx, (int)$targetuser->id, false); // Assigned at THIS context.
             if (empty($roles)) {
                 continue;
@@ -410,10 +415,11 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
             );
         }
         if (!$anyrole) {
+            // The chain is named so that "nothing here" is never read as "nothing anywhere".
             $rows[] = diagnostic_result_builder::row(
                 'warn',
-                'No role assignments found',
-                ($isself ? 'You have' : fullname($targetuser) . ' has') . ' no roles along this context chain.',
+                'No role assignments along this chain',
+                'Checked: ' . implode(', ', $chainnames) . '. Other courses and activities are not part of this chain.',
                 $links->if_capable(
                     $links->assign_roles((int)$targetcontext->id),
                     'moodle/role:assign',
@@ -422,7 +428,83 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
                 )
             );
         }
+        foreach ($this->roles_elsewhere($chainids, $targetuser, $isself, $actinguserid) as $row) {
+            $rows[] = $row;
+        }
         return $this->build_result($targetcontext, $targetuser, $isself, $rows, 'Role assignments', 'roles');
+    }
+
+    /**
+     * The person's role assignments outside the context chain, one row per context.
+     *
+     * A context is named only where the requester may review roles (or asks about themselves);
+     * the others are counted. At most self::ELSEWHERE_MAX contexts are named.
+     *
+     * @param int[] $chainids
+     * @param \stdClass $targetuser
+     * @param bool $isself
+     * @param int $actinguserid
+     * @return array[]
+     */
+    private function roles_elsewhere(array $chainids, \stdClass $targetuser, bool $isself, int $actinguserid): array {
+        global $DB;
+
+        [$notinsql, $params] = $DB->get_in_or_equal(array_map('intval', $chainids), SQL_PARAMS_NAMED, 'chain', false);
+        $params['userid'] = (int)$targetuser->id;
+        $assignments = $DB->get_records_sql(
+            "SELECT ra.id, ra.contextid, r.shortname
+               FROM {role_assignments} ra
+               JOIN {role} r ON r.id = ra.roleid
+              WHERE ra.userid = :userid AND ra.contextid $notinsql
+           ORDER BY ra.contextid, r.shortname",
+            $params
+        );
+        if (empty($assignments)) {
+            return [];
+        }
+
+        $bycontext = [];
+        foreach ($assignments as $ra) {
+            $bycontext[(int)$ra->contextid][] = (string)$ra->shortname;
+        }
+        $named = [];
+        $hidden = 0;
+        foreach ($bycontext as $ctxid => $names) {
+            $ctx = context::instance_by_id($ctxid, IGNORE_MISSING);
+            if (!$ctx) {
+                continue;
+            }
+            if (!$isself && !has_capability('moodle/role:review', $ctx, $actinguserid)) {
+                $hidden += count($names);
+                continue;
+            }
+            // A user context would carry a third person's name; the anonymizer does not know it.
+            $name = (int)$ctx->contextlevel === CONTEXT_USER ? 'a user profile' : $ctx->get_context_name();
+            $named[] = ['level' => (int)$ctx->contextlevel, 'name' => $name, 'roles' => array_unique($names)];
+        }
+        usort($named, static fn(array $a, array $b): int => [$a['level'], $a['name']] <=> [$b['level'], $b['name']]);
+
+        $rows = [];
+        foreach (array_slice($named, 0, self::ELSEWHERE_MAX) as $entry) {
+            $rows[] = diagnostic_result_builder::row(
+                'ok',
+                'Elsewhere on this site: ' . $entry['name'],
+                'Roles: ' . implode(', ', $entry['roles'])
+            );
+        }
+        $more = count($named) - count($rows);
+        if ($more > 0 || $hidden > 0) {
+            $parts = [];
+            if ($more > 0) {
+                $parts[] = $more . ' more context' . ($more === 1 ? '' : 's') . ' with role assignments not listed';
+            }
+            if ($hidden > 0) {
+                $parts[] = $hidden . ' more role assignment' . ($hidden === 1 ? '' : 's') . ' in '
+                    . ($hidden === 1 ? 'a context' : 'contexts') . ' you may not review';
+            }
+            $rows[] = diagnostic_result_builder::row('ok', 'Elsewhere on this site', ucfirst(implode('; ', $parts)) . '.');
+        }
+        return $rows;
     }
 
     /**
