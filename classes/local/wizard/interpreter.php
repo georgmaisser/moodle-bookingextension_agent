@@ -141,6 +141,7 @@ class interpreter implements agent_interpreter {
                 $this->lastparseissuecode !== '' ? $this->lastparseissuecode : 'CONTRACT_PARSE_ERROR'
             );
         }
+        $parsed = $this->canonicalize_planner_shape($parsed);
 
         // Stage 2: Classify response type.
         $responsetype = $parsed['response_type'] ?? null;
@@ -424,6 +425,7 @@ class interpreter implements agent_interpreter {
                 $this->lastparseissuecode !== '' ? $this->lastparseissuecode : 'CONTRACT_PARSE_ERROR'
             );
         }
+        $parsed = $this->canonicalize_planner_shape($parsed);
 
         $responsetype = $this->safe_string($parsed['response_type'] ?? '');
         if (!in_array($responsetype, ['skill_call', 'clarification', 'confirm_pending', 'sufficient', 'error'], true)) {
@@ -754,6 +756,82 @@ class interpreter implements agent_interpreter {
         return $payload;
     }
 
+
+    /**
+     * Move contract values the planner put under the wrong key to their canonical place.
+     *
+     * Runs on every parsed answer, before classification, and is a no-op for a canonical one. It reads
+     * key STRUCTURE only — the response_type enum and the contract's own field names — never text:
+     *  - a key named like a response_type whose value is an object carrying selected_skill|skill is
+     *    that response_type (when none is valid) and the single command (when commands[] is empty);
+     *    its message fills an empty top-level message;
+     *  - a string under the key equal to the response_type fills an empty message;
+     *  - top-level selected_skill stands in for skill when commands[] is empty and the response_type
+     *    is command-bearing or missing.
+     * Sofabooking threads 1311/1312 (2026-10-01, #2529): the constructor wrote the command object under
+     * "confirmation_request" (the turn ended as CONTRACT_UNKNOWN_RESPONSE_TYPE, no retry), put
+     * selected_skill and parameters next to the response_type, and the selector put its question under
+     * "clarification" — each a complete answer that cost the user an error or a 15-second retry round.
+     *
+     * @param array $parsed
+     * @return array
+     */
+    private function canonicalize_planner_shape(array $parsed): array {
+        $responsetype = $this->safe_string($parsed['response_type'] ?? '');
+        $hasvalidtype = in_array($responsetype, self::ALLOWED_RESPONSE_TYPES, true);
+        $commands = $parsed['commands'] ?? null;
+        $hascommands = is_array($commands) && !empty($commands);
+        $message = $this->safe_string($parsed['message'] ?? '');
+
+        foreach (self::ALLOWED_RESPONSE_TYPES as $type) {
+            $value = $parsed[$type] ?? null;
+            if (is_array($value)) {
+                $skill = $this->safe_string($value['selected_skill'] ?? $value['skill'] ?? '');
+                if ($skill === '') {
+                    continue;
+                }
+                if (!$hasvalidtype) {
+                    $parsed['response_type'] = $type;
+                    $responsetype = $type;
+                    $hasvalidtype = true;
+                }
+                if (!$hascommands) {
+                    $command = $value;
+                    unset($command['selected_skill']);
+                    $command['skill'] = $skill;
+                    $parsed['commands'] = [$command];
+                    $hascommands = true;
+                }
+                $nestedmessage = $this->safe_string($value['message'] ?? '');
+                if ($message === '' && $nestedmessage !== '') {
+                    $parsed['message'] = $nestedmessage;
+                    $message = $nestedmessage;
+                }
+            } else if (is_string($value) && trim($value) !== '') {
+                if (!$hasvalidtype) {
+                    $parsed['response_type'] = $type;
+                    $responsetype = $type;
+                    $hasvalidtype = true;
+                }
+                if ($message === '' && $responsetype === $type) {
+                    $parsed['message'] = trim($value);
+                    $message = $parsed['message'];
+                }
+            }
+        }
+
+        $commandbearing = !$hasvalidtype || in_array($responsetype, ['skill_call', 'confirmation_request'], true);
+        if (
+            $commandbearing
+            && !$hascommands
+            && $this->safe_string($parsed['skill'] ?? '') === ''
+            && $this->safe_string($parsed['selected_skill'] ?? '') !== ''
+        ) {
+            $parsed['skill'] = $this->safe_string($parsed['selected_skill']);
+        }
+
+        return $parsed;
+    }
 
     /**
      * Normalize common skill-like malformed outputs into canonical skill_call payload.
