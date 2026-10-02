@@ -421,6 +421,56 @@ final class phase_model_tiers_test extends abstract_agent_testcase {
     }
 
     /**
+     * A trial without the Wunderbyte provider runs role-less on the core OpenAI provider: it gets the role-less alias.
+     *
+     * The role-aware alias (wunderbyte-privat) may carry JSON mode per deployment and role (#2537); a request without a
+     * role must never land there (Wunderbyte-GmbH/Wunderbyte-GmbH#2541).
+     */
+    public function test_trial_provisioner_openai_strategy_uses_the_roleless_alias(): void {
+        $provisioner = new \bookingextension_agent\local\wizard\services\trial\trial_provisioner();
+        $method = new \ReflectionMethod($provisioner, 'build_actionconfig');
+        $config = $method->invoke($provisioner, 'openai', 'https://llm.wunderbyte.at');
+
+        $this->assertSame(['core_ai\\aiactions\\generate_text'], array_keys($config));
+        $this->assertSame('wunderbyte-trial', $config['core_ai\\aiactions\\generate_text']['settings']['model']);
+        // The Wunderbyte strategy keeps the role-aware tiers.
+        $wb = $method->invoke($provisioner, 'wunderbyte', 'https://llm.wunderbyte.at');
+        $this->assertSame('wunderbyte-privat', $wb['core_ai\\aiactions\\generate_text']['settings']['model']);
+    }
+
+    /**
+     * Cloning a source that points at the Wunderbyte LLM gives every Wunderbyte action its standard tier.
+     *
+     * The source's single chat model (here the role-less trial alias) must not be copied into the role-aware actions.
+     */
+    public function test_clone_from_wunderbyte_endpoint_uses_the_standard_tiers(): void {
+        $provisioner = new \bookingextension_agent\local\wizard\services\trial\trial_provisioner();
+        $method = new \ReflectionMethod($provisioner, 'build_cloned_actionconfig');
+        $config = $method->invoke($provisioner, 'https://llm.wunderbyte.at/v1/chat/completions', 'wunderbyte-trial');
+
+        $this->assertSame('wunderbyte-privat-mini', $config[self::DECIDE]['settings']['model']);
+        $this->assertSame('wunderbyte-privat', $config[self::CONSTRUCT]['settings']['model']);
+        $this->assertSame('wunderbyte-privat', $config[wb_action_names::GENERATE_AGENT_REPLY]['settings']['model']);
+        $this->assertSame('wunderbyte-privat', $config['core_ai\\aiactions\\generate_text']['settings']['model']);
+        $this->assertSame('wunderbyte-embeddings', $config[wb_action_names::GENERATE_EMBEDDINGS]['settings']['model']);
+        $this->assertSame(3584, $config[wb_action_names::GENERATE_EMBEDDINGS]['settings']['dimensions']);
+    }
+
+    /**
+     * Cloning a third-party source keeps its own chat model: the standard tiers exist only on the Wunderbyte LLM.
+     */
+    public function test_clone_from_third_party_endpoint_keeps_the_source_model(): void {
+        $provisioner = new \bookingextension_agent\local\wizard\services\trial\trial_provisioner();
+        $method = new \ReflectionMethod($provisioner, 'build_cloned_actionconfig');
+        $config = $method->invoke($provisioner, 'https://api.openai.com/v1/chat/completions', 'gpt-4.1-mini');
+
+        $this->assertSame('gpt-4.1-mini', $config[self::DECIDE]['settings']['model']);
+        $this->assertSame('gpt-4.1-mini', $config[self::CONSTRUCT]['settings']['model']);
+        $this->assertSame('gpt-4.1-mini', $config['core_ai\\aiactions\\generate_text']['settings']['model']);
+        $this->assertSame('text-embedding-3-small', $config[wb_action_names::GENERATE_EMBEDDINGS]['settings']['model']);
+    }
+
+    /**
      * A benchmark override sets the model of every chat action the agent calls, generate_text included.
      */
     public function test_benchmark_override_covers_every_chat_action(): void {

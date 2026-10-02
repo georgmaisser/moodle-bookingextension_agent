@@ -47,6 +47,18 @@ class trial_provisioner {
     /** @var string Hard-coded LiteLLM/trial service base URL (intentionally not an admin setting). */
     private const BASE_URL = 'https://llm.wunderbyte.at';
 
+    /** @var string Role-aware chat alias: the agent's phases on the Wunderbyte provider (gateway may add JSON mode per role). */
+    private const MODEL_CHAT = 'wunderbyte-privat';
+
+    /** @var string Role-aware compact alias for the selector (planner_decide). */
+    private const MODEL_CHAT_MINI = 'wunderbyte-privat-mini';
+
+    /**
+     * @var string Role-less alias for a trial on the core OpenAI provider: no request role reaches the gateway there, so
+     * it must route to a model that keeps the planner JSON intact without JSON mode (Wunderbyte-GmbH/Wunderbyte-GmbH#2541).
+     */
+    private const MODEL_TRIAL_ROLELESS = 'wunderbyte-trial';
+
     /** @var string Provider instance name shared by both strategies (also the legacy OpenAI name). */
     private const INSTANCE_NAME = 'Wunderbyte';
 
@@ -275,6 +287,12 @@ class trial_provisioner {
         $wbhost = parse_url(self::BASE_URL, PHP_URL_HOST);
         $iswbendpoint = $wbhost !== null && stripos($embeddings, $wbhost) !== false;
         $embeddingsmodel = $iswbendpoint ? 'wunderbyte-embeddings' : 'text-embedding-3-small';
+        // On the Wunderbyte LLM every action gets its standard tier, never the source's single chat model: the source may
+        // be a role-less trial instance whose alias must not reach the role-aware actions (Wunderbyte-GmbH/Wunderbyte-GmbH#2541).
+        $decidemodel = $iswbendpoint ? self::MODEL_CHAT_MINI : $model;
+        if ($iswbendpoint) {
+            $model = self::MODEL_CHAT;
+        }
 
         return [
             'aiprovider_wunderbyte\\aiactions\\generate_embeddings' => [
@@ -292,7 +310,7 @@ class trial_provisioner {
                 'modelsettings' => [],
                 'settings' => [
                     'endpoint' => $chat,
-                    'model' => $model,
+                    'model' => $decidemodel,
                     'systeminstruction' => '',
                     // Greedy: the planner is a routing + JSON task — determinism kills run-to-run flips.
                     'temperature' => 0.0,
@@ -501,7 +519,8 @@ class trial_provisioner {
      * Build the per-action endpoint/model map for the chosen strategy.
      *
      * Trial model aliases (granted by the minted key): wunderbyte-privat (chat),
-     * wunderbyte-privat-mini (compact planner), wunderbyte-embeddings (embeddings).
+     * wunderbyte-privat-mini (compact planner), wunderbyte-embeddings (embeddings) for the Wunderbyte strategy;
+     * wunderbyte-trial for the OpenAI strategy, which sends no request role (Wunderbyte-GmbH/Wunderbyte-GmbH#2541).
      * `providerid` is intentionally omitted — core_ai owns the instance id.
      *
      * @param string $strategy 'wunderbyte' | 'openai'
@@ -526,7 +545,7 @@ class trial_provisioner {
                 'modelsettings' => [],
                 'settings' => [
                     'endpoint' => $chat,
-                    'model' => 'wunderbyte-privat',
+                    'model' => $strategy === 'openai' ? self::MODEL_TRIAL_ROLELESS : self::MODEL_CHAT,
                     'systeminstruction' => '',
                     'temperature' => $gttemperature,
                 ],
