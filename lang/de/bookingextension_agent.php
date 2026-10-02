@@ -232,7 +232,7 @@ $string['agent_decision_command_malformed'] = 'Befehl #{$a}: fehlerhaft.';
 $string['agent_decision_command_missing_skill'] = 'Befehl #{$a}: fehlender Skill.';
 $string['agent_decision_command_skill_not_registered'] = 'Befehl #{$a->idx}: Skill {$a->skill} ist nicht registriert.';
 $string['agent_display_name'] = 'Booking Wizard';
-$string['agent_enabled'] = 'Booking Wizard aktivieren';
+$string['agent_enabled'] = 'Booking Wizard aktivieren <span class="badge bg-danger text-light"><i class="fa fa-flask" aria-hidden="true"></i> Experimentell</span>';
 $string['agent_enabled_desc'] = 'Wenn deaktiviert, werden alle weiteren Booking-Wizard-Einstellungen ausgeblendet.';
 $string['agent_enrol_role_ambiguous'] = 'Mehrere Rollen passen zu „{$a->query}“. Welche soll die Person erhalten? Zur Auswahl: {$a->candidates}.';
 $string['agent_executor_run_already_executed'] = 'Ausführung bereits erfolgt (Idempotenzschlüssel stimmt überein).';

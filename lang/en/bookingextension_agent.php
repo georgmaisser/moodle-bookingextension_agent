@@ -234,7 +234,7 @@ $string['agent_decision_command_malformed'] = 'Command #{$a}: malformed.';
 $string['agent_decision_command_missing_skill'] = 'Command #{$a}: missing skill.';
 $string['agent_decision_command_skill_not_registered'] = 'Command #{$a->idx}: skill {$a->skill} is not registered.';
 $string['agent_display_name'] = 'Booking Wizard';
-$string['agent_enabled'] = 'Enable Booking Wizard';
+$string['agent_enabled'] = 'Enable Booking Wizard <span class="badge bg-danger text-light"><i class="fa fa-flask" aria-hidden="true"></i> Experimental</span>';
 $string['agent_enabled_desc'] = 'If disabled, all other Booking Wizard settings are hidden.';
 $string['agent_enrol_role_ambiguous'] = 'Several roles match "{$a->query}". Which one should the person get? Candidates: {$a->candidates}.';
 $string['agent_executor_run_already_executed'] = 'Run already executed (idempotency key matched).';
