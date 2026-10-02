@@ -79,7 +79,7 @@ if ($adminroot->fulltree) {
     $aisettingspage->add(
         new admin_setting_heading(
             'bookingextension_agent_aisettings_heading',
-            get_string('aisettings', 'bookingextension_agent'),
+            get_string('aisettings', 'bookingextension_agent') . ' ' . get_string('badge:booking10', 'mod_booking'),
             get_string('aisettings_desc', 'bookingextension_agent')
         )
     );
