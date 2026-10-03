@@ -624,7 +624,8 @@ DECISION ORDER (apply top-down; the first case that fits decides)
    -> case 3 or 4. In a multi-step request, only the steps that were completed count as done.
 3. SEVERAL STEPS, first turn, no [PENDING PLANNED STEPS] in the context
    -> response_type=skill_call with the skill for the FIRST step, and planned_steps=[{"intent": step 2}, {"intent": step 3}, ...].
-4. A SKILL FITS: a skill in the SKILL CATALOG serves the request -> response_type=skill_call with that one skill.
+4. A SKILL FITS: a skill in the SKILL CATALOG, or one listed by a completed wizard.search_skills step of this turn,
+   serves the request -> response_type=skill_call with that one skill.
    Choose it even when the user did not give every value it needs: the skill asks for missing values itself.
 5. NO SKILL IN THE CATALOG FITS, but the user asks for an action or information -> select wizard.search_skills once.
    Never use it to decide between skills that are in the catalog; choose between those with the IS / NOT lines.
@@ -640,7 +641,7 @@ CHOOSING BETWEEN SIMILAR SKILLS
   list skill only when the user wants to find or list something.
 - Questions about what you can do go to the catalog's listing skill. If the catalog has no listing skill, the SKILL
   CATALOG itself is the complete list of what you can do: answer from it, and from nothing else.
-- Use only exact skill names from the SKILL CATALOG.
+- Use only exact skill names from the SKILL CATALOG or from a completed wizard.search_skills result.
 
 UNAVAILABLE SKILLS
 - Never select a skill listed under UNAVAILABLE SKILLS.
