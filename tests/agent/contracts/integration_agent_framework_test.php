@@ -310,8 +310,10 @@ final class integration_agent_framework_test extends TestCase {
             // The is/not keys joined on 2026-09-22 (wave 17, #2453): the boundary against a sibling moved
             // out of the description — which is embedding anchor #0 and cannot carry a negation — into the
             // IS:/NOT: card lines, which the selector reads and the anchor builder does not.
+            // The when key joined on 2026-10-03 (#2546): a skill may declare when to choose it; without it the
+            // WHEN: card line still falls back to the first message trigger.
             ['skill', 'readonly', 'intent', 'minimal_input', 'required_input', 'accepts_empty_input',
-                'required_groups', 'description', 'is', 'not', 'message_triggers', 'example_input'],
+                'required_groups', 'description', 'is', 'not', 'when', 'message_triggers', 'example_input'],
             array_keys($sanitized[0])
         );
         $this->assertSame('mod_booking.diagnose_booking_issue', (string)$sanitized[0]['skill']);
@@ -348,7 +350,7 @@ final class integration_agent_framework_test extends TestCase {
         // the sanitizer emits a minimal entry rather than trusting the catalog row's stale metadata.
         $this->assertSame(
             ['skill', 'readonly', 'intent', 'minimal_input', 'required_input', 'accepts_empty_input',
-                'required_groups', 'description', 'is', 'not', 'message_triggers'],
+                'required_groups', 'description', 'is', 'not', 'when', 'message_triggers'],
             array_keys($sanitized[1])
         );
         $this->assertSame('mod_booking.list_options', (string)$sanitized[1]['skill']);

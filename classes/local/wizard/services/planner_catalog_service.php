@@ -93,6 +93,7 @@ class planner_catalog_service {
                 'description' => $this->compact_catalog_description((string)($entry['description'] ?? '')),
                 'is' => trim((string)($entry['is'] ?? '')),
                 'not' => trim((string)($entry['not'] ?? '')),
+                'when' => trim((string)($entry['when'] ?? '')),
                 'message_triggers' => $this->compact_catalog_message_triggers((array)($entry['message_triggers'] ?? [])),
             ];
 
@@ -164,6 +165,7 @@ class planner_catalog_service {
                 $description = (string)($live['description'] ?? '');
                 $is = (string)($live['is'] ?? '');
                 $not = (string)($live['not'] ?? '');
+                $when = (string)($live['when'] ?? '');
             } else {
                 // A row whose skill is no longer registered has no live metadata (the CSV stores none),
                 // so emit a minimal entry rather than fabricating fields.
@@ -175,6 +177,7 @@ class planner_catalog_service {
                 $description = '';
                 $is = '';
                 $not = '';
+                $when = '';
             }
 
             $row = [
@@ -188,6 +191,7 @@ class planner_catalog_service {
                 'description' => $this->compact_catalog_description($description),
                 'is' => trim($is),
                 'not' => trim($not),
+                'when' => trim($when),
                 'message_triggers' => $this->compact_catalog_message_triggers($triggerraw),
             ];
 
@@ -296,10 +300,13 @@ class planner_catalog_service {
                 $lines[] = 'NOT: ' . $not;
             }
 
-            // WHEN: from first message trigger description.
+            // WHEN: the skill's declared when-text; without one, the first message trigger's description (#2546).
             $triggers = (array)($entry['message_triggers'] ?? []);
-            $firsttrigger = !empty($triggers) && is_array($triggers[0]) ? (array)$triggers[0] : [];
-            $when = trim(preg_replace('/\s+/', ' ', (string)($firsttrigger['description'] ?? '')) ?? '');
+            $when = trim((string)($entry['when'] ?? ''));
+            if ($when === '') {
+                $firsttrigger = !empty($triggers) && is_array($triggers[0]) ? (array)$triggers[0] : [];
+                $when = trim(preg_replace('/\s+/', ' ', (string)($firsttrigger['description'] ?? '')) ?? '');
+            }
             if ($when !== '') {
                 $lines[] = 'WHEN: ' . core_text::substr($when, 0, 180);
             }

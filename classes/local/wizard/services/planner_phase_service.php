@@ -744,7 +744,7 @@ class planner_phase_service {
         // costs tokens on every construction call, and can mislead — in baseline run 25 (TSA-4) the
         // contract named "the unit list (list_units)" and the constructor asked the user for a unit the
         // skill does not require. Dropped for the same reason minimal_input is dropped above.
-        unset($entry['is'], $entry['not']);
+        unset($entry['is'], $entry['not'], $entry['when']);
 
         // In the construction phase exactly one skill is in scope, so we surface ALL of its prompt-pack
         // guidance unconditionally (no lexical trigger gate). This is the only place situational rules

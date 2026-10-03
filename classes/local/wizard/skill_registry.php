@@ -55,6 +55,9 @@ class skill_registry {
      */
     public const DISCRIMINATION_CAP = 160;
 
+    /** @var int Cap of a declared when-text, equal to the WHEN: card line cap. */
+    public const WHEN_CAP = 180;
+
     /** @var array component => provider instance */
     private array $providers = [];
 
@@ -546,6 +549,9 @@ class skill_registry {
             // enforces the length so the slim catalogue stays affordable.
             'is' => $this->compact_discrimination((string)($schema['is'] ?? '')),
             'not' => $this->compact_discrimination((string)($schema['not'] ?? '')),
+            // When to choose the skill, rendered as the WHEN: card line. Optional: without it the card falls back
+            // to the first message trigger, which for some skills describes an edge case (#2546). Selector only.
+            'when' => $this->compact_discrimination((string)($schema['when'] ?? ''), self::WHEN_CAP),
             'readonly' => (bool)($schema['readonly'] ?? $skill->is_read_only()),
             // Owning component (path form, e.g. 'mod/booking'). Carried so the full-access gate can
             // restrict the PRO lock to Wunderbyte's own write skills; see agent_access_service.
@@ -584,14 +590,15 @@ class skill_registry {
      * and every clause is paid for in the slim catalogue, where all cards enter the prompt at once.
      *
      * @param string $clause
+     * @param int $cap maximum length, {@see self::DISCRIMINATION_CAP} by default
      * @return string
      */
-    private function compact_discrimination(string $clause): string {
+    private function compact_discrimination(string $clause, int $cap = self::DISCRIMINATION_CAP): string {
         $clause = trim((string)preg_replace('/\s+/', ' ', $clause));
         if ($clause === '') {
             return '';
         }
-        return core_text::substr($clause, 0, self::DISCRIMINATION_CAP);
+        return core_text::substr($clause, 0, $cap);
     }
 
     /**
