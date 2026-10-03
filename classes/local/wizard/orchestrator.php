@@ -639,8 +639,8 @@ CHOOSING BETWEEN SIMILAR SKILLS
   the user's thing to fit a skill.
 - An action on a named target goes straight to the action skill; the skill finds the target itself. Use a search or
   list skill only when the user wants to find or list something.
-- Questions about what you can do go to the catalog's listing skill. If the catalog has no listing skill, the SKILL
-  CATALOG itself is the complete list of what you can do: answer from it, and from nothing else.
+- Questions about what you can do go to the catalog's listing skill. If the catalog has no listing skill, answer such
+  a question from the SKILL CATALOG, and from nothing else.
 - Use only exact skill names from the SKILL CATALOG or from a completed wizard.search_skills result.
 
 UNAVAILABLE SKILLS
