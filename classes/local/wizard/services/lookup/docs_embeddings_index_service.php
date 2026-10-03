@@ -62,7 +62,8 @@ class docs_embeddings_index_service {
      * @param int|null    $dimensions Override dimensions (uses config if null).
      * @param bool        $force      Force re-embedding of all scanned chunks.
      * @param callable|null $progress Optional sink for human-readable progress lines (#2343).
-     * @return array  Summary: status, embedded, reused, deleted, written, corpora.
+     * @return array  Summary: status (ok, or partial when chunks failed), embedded, reused, deleted,
+     *                written, failed, corpora.
      */
     public function rebuild(
         ?string $corpusid = null,
@@ -145,6 +146,9 @@ class docs_embeddings_index_service {
         $embedded = 0;
         $reused = 0;
         $kept = 0;
+        // Chunks whose embedding call failed (e.g. provider busy / rate limited). They are missing
+        // from the new generation, so a run with failures is not a complete index (#2549).
+        $failed = 0;
 
         $gen = $store->begin_generation($area, $resolvedmodel, $resolveddimensions);
         try {
@@ -155,6 +159,7 @@ class docs_embeddings_index_service {
                 $files = $this->scan_md_files($docsroot);
                 $cembedded = 0;
                 $creused = 0;
+                $cfailed = 0;
                 foreach ($files as $abspath) {
                     $relpath = ltrim(substr($abspath, strlen($docsroot)), '/\\');
                     $content = @file_get_contents($abspath);
@@ -195,6 +200,8 @@ class docs_embeddings_index_service {
                         );
 
                         if (empty($embeddingcall['success']) || empty($embeddingcall['embedding'])) {
+                            $failed++;
+                            $cfailed++;
                             continue;
                         }
 
@@ -221,9 +228,10 @@ class docs_embeddings_index_service {
                     'files' => count($files),
                     'embedded' => $cembedded,
                     'reused' => $creused,
+                    'failed' => $cfailed,
                 ];
                 $note('corpus ' . $scancorpusid . ': files=' . count($files)
-                    . ', embedded=' . $cembedded . ', reused=' . $creused);
+                    . ', embedded=' . $cembedded . ', reused=' . $creused . ', failed=' . $cfailed);
             }
 
             // Pass 2 — non-destructive merge: copy existing rows of declared corpora that were NOT
@@ -244,7 +252,9 @@ class docs_embeddings_index_service {
             // Only a full rebuild has just rewritten every corpus, so only it may stamp the source
             // fingerprint as "what the index now reflects". Readiness compares this against a freshly
             // computed live fingerprint, so any later add/edit/remove of a doc flips it back to stale.
-            if ($isfullrebuild) {
+            // A run with failed chunks does not reflect the source: without the stamp the index stays
+            // stale (searchable, not ready) until a later run has embedded the missing chunks.
+            if ($isfullrebuild && $failed === 0) {
                 $store->set_fingerprint($area, $resolvedmodel, $resolveddimensions, $this->compute_source_fingerprint());
             }
         } catch (\Throwable $e) {
@@ -258,11 +268,12 @@ class docs_embeddings_index_service {
         }
 
         return [
-            'status' => 'ok',
+            'status' => $failed > 0 ? 'partial' : 'ok',
             'written' => $written,
             'embedded' => $embedded,
             'reused' => $reused,
             'deleted' => $deleted,
+            'failed' => $failed,
             'corpora' => $corporasummary,
         ];
     }

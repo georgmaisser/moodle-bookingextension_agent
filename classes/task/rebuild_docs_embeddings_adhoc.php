@@ -76,7 +76,23 @@ class rebuild_docs_embeddings_adhoc extends \core\task\adhoc_task {
             . ' embedded=' . (int)($summary['embedded'] ?? 0)
             . ', reused=' . (int)($summary['reused'] ?? 0)
             . ', deleted=' . (int)($summary['deleted'] ?? 0)
-            . ', written=' . (int)($summary['written'] ?? 0));
+            . ', written=' . (int)($summary['written'] ?? 0)
+            . ', failed=' . (int)($summary['failed'] ?? 0));
+
+        // Chunks whose embedding call failed (provider busy, rate limit) are missing from the index
+        // (#2549). Fail the task so that Moodle's scheduler retries it with faildelay backoff; the
+        // retry reuses every chunk that exists and embeds only the missing ones.
+        if ((string)($summary['status'] ?? '') === 'partial') {
+            $failed = (int)($summary['failed'] ?? 0);
+            mtrace('bookingextension_agent docs embeddings rebuild: ' . $failed
+                . ' chunk(s) failed to embed — index incomplete, the task will be retried.');
+            throw new \moodle_exception(
+                'embeddingsdocsrebuildfailed',
+                'bookingextension_agent',
+                '',
+                'partial (' . $failed . ' chunks failed)'
+            );
+        }
 
         // Sanity check (parity with the skill-catalog task): after a successful FULL rebuild the docs
         // index must evaluate ready — schema valid, every resolvable corpus covered, and the freshly
