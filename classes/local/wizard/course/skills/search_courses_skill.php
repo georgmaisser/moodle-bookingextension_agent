@@ -56,7 +56,7 @@ class search_courses_skill extends core_skill_base implements skill_trigger_prov
         return [
             'version' => 1,
             'description' => 'Resolve a Moodle course by its NAME: courseid, shortname, fullname, URL, active enrolment count. Use '
-                . 'this only to find WHICH Moodle course is meant — typically to obtain a course id or link for a follow-up step.',
+                . 'this to find Moodle courses by name or to list the courses of the platform.',
             'is' => 'Moodle course containers, by name.',
             'not' => 'Booking options (mod_booking.search_options), content by topic (core.find_content), categories '
                 . '(list_categories).',
