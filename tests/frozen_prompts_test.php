@@ -43,8 +43,10 @@ use bookingextension_agent\local\wizard\services\turn_skill_exclusions;
 final class frozen_prompts_test extends advanced_testcase {
     /** sha1 of the frozen templates. Change only with George's explicit approval (top rule), never to make a prompt pass. */
     private const FROZEN = [
-        'selector' => '7d1cb49125456b0b5562ad3963806aea02a8d0df',
-        'constructor' => '938fc1cd46a75addff9c26849c8132a1a178afd1',
+        // Selector and constructor changed with George's approval on 2026-10-03 (Wunderbyte-GmbH/Wunderbyte-GmbH#2546,
+        // instruction lab: contradictions between the static rules, the skill cards and the observations resolved).
+        'selector' => '8e4274b2f5958163d2e60f2e79a4194518071bfc',
+        'constructor' => '97c1b6314ee12e163aebed189c536e816f79fcd4',
         'synchronizer' => 'e172fbd7aa7cb1ca89ea2c533114313b24977ea0',
     ];
 
