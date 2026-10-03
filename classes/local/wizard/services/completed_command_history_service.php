@@ -70,12 +70,15 @@ class completed_command_history_service {
      * Extract recently completed commands (skill + executed input) from assistant state.
      *
      * @param array $messages
+     * @param bool $withcreated Add the internal key _created_at (time of the assistant message the row comes from).
      * @return array[]
      */
-    public function extract_from_messages(array $messages): array {
+    public function extract_from_messages(array $messages, bool $withcreated = false): array {
         $completed = [];
         $latestassistantpayload = null;
         $fallbackassistantpayload = null;
+        $latestcreated = 0;
+        $fallbackcreated = 0;
 
         for ($i = count($messages) - 1; $i >= 0; $i--) {
             $msg = $messages[$i];
@@ -90,18 +93,21 @@ class completed_command_history_service {
 
             if (!is_array($fallbackassistantpayload)) {
                 $fallbackassistantpayload = $structured;
+                $fallbackcreated = (int)($msg->timecreated ?? 0);
             }
 
             $loopresults = (array)($structured['loop_results'] ?? []);
             $results = (array)($structured['results'] ?? []);
             if (!empty($loopresults) || !empty($results)) {
                 $latestassistantpayload = $structured;
+                $latestcreated = (int)($msg->timecreated ?? 0);
                 break;
             }
         }
 
         if (!is_array($latestassistantpayload)) {
             $latestassistantpayload = $fallbackassistantpayload;
+            $latestcreated = $fallbackcreated;
         }
 
         if (!is_array($latestassistantpayload) || empty($latestassistantpayload)) {
@@ -133,6 +139,9 @@ class completed_command_history_service {
             $normalizedinput = input_normalizer::normalize($input, self::COMPACT_OPTS);
             if (!empty($normalizedinput)) {
                 $compact['input'] = $normalizedinput;
+            }
+            if ($withcreated) {
+                $compact['_created_at'] = $latestcreated;
             }
             $completed[] = $compact;
         }
@@ -181,9 +190,10 @@ class completed_command_history_service {
      *
      * @param int $threadid
      * @param array[] $existing
+     * @param bool $withcreated Add the internal key _created_at (creation time of the queue item).
      * @return array[]
      */
-    public function merge_from_queue(int $threadid, array $existing): array {
+    public function merge_from_queue(int $threadid, array $existing, bool $withcreated = false): array {
         if ($threadid <= 0) {
             return $existing;
         }
@@ -236,6 +246,9 @@ class completed_command_history_service {
             }
 
             $seen[$signature] = true;
+            if ($withcreated) {
+                $compact['_created_at'] = (int)($item['created_at'] ?? 0);
+            }
             $queuecompleted[] = $compact;
         }
 

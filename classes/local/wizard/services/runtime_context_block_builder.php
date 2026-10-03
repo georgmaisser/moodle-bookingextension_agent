@@ -254,13 +254,19 @@ class runtime_context_block_builder {
             $this->append_current_user_section($statelines, $privacy, $threadid);
         }
 
-        $completedcommands = $this->completedhistorysvc->extract_from_messages($messages);
-        $completedcommands = $this->completedhistorysvc->merge_from_queue($threadid, $completedcommands);
+        // Rows of earlier turns go to their own sections (#2550): the decision order reads "completed_commands
+        // of this turn", so listing every turn's work there made a follow-up request look already done. A row
+        // belongs to this turn when it was created at or after the thread's latest user message (engine state).
+        $turnstart = $this->current_turn_start($threadid, $messages);
+        $completedcommands = $this->completedhistorysvc->extract_from_messages($messages, true);
+        $completedcommands = $this->completedhistorysvc->merge_from_queue($threadid, $completedcommands, true);
+        [$completedcommands, $earliercommands] = $this->split_by_turn($completedcommands, $turnstart);
         $completedcommands = (array)$privacy->anonymize_value_for_llm($threadid, $completedcommands);
-        $this->append_json_list_section($statelines, 'completed_commands:', $completedcommands);
+        $earliercommands = (array)$privacy->anonymize_value_for_llm($threadid, $earliercommands);
+        $this->append_turn_sections($statelines, 'completed_commands:', $completedcommands, $earliercommands);
 
         $observationledger = new execution_observation_ledger($this->store);
-        $completedobservations = $observationledger->get_recent_for_runtime($threadid, 12);
+        $completedobservations = $observationledger->get_recent_for_runtime($threadid, 12, true);
 
         // Dedup haystack: live observations are already part of this prompt as
         // [OBSERVATION n] blocks; a ledger row repeating the same text is compacted
@@ -276,6 +282,8 @@ class runtime_context_block_builder {
             if (!is_array($row)) {
                 continue;
             }
+            $created = (int)($row['_created_at'] ?? 0);
+            unset($row['_created_at']);
 
             $enginestatic = !empty($row['engine_static']);
             unset($row['engine_static']);
@@ -298,9 +306,11 @@ class runtime_context_block_builder {
                 $row['observation'] = '[shown in the OBSERVATION blocks below]';
             }
 
+            $row['_created_at'] = $created;
             $rows[] = $row;
         }
-        $this->append_json_list_section($statelines, 'completed_observations:', $rows);
+        [$rows, $earlierrows] = $this->split_by_turn($rows, $turnstart);
+        $this->append_turn_sections($statelines, 'completed_observations:', $rows, $earlierrows);
 
         // The now_iso line is the single most volatile token (changes every request); keep it the LAST
         // state line so it never fronts the cacheable catalog/ledger content above it in the state block.
@@ -709,6 +719,76 @@ class runtime_context_block_builder {
         $lines[] = '';
         $lines[] = $heading;
         $lines[] = $json;
+    }
+
+    /**
+     * Start of the current turn: creation time of the thread's latest user message (0 when there is none).
+     *
+     * @param int $threadid
+     * @param array $messages Messages of the thread when the caller already has them.
+     * @return int
+     */
+    private function current_turn_start(int $threadid, array $messages): int {
+        if (empty($messages) && $threadid > 0) {
+            $messages = $this->store->get_messages($threadid);
+        }
+        $start = 0;
+        foreach ($messages as $message) {
+            if ((string)($message->role ?? '') === 'user') {
+                $start = max($start, (int)($message->timecreated ?? 0));
+            }
+        }
+        return $start;
+    }
+
+    /**
+     * Append this turn's rows and, below, earlier turns' rows under earlier_turns_<heading>.
+     *
+     * While earlier rows exist, this turn's heading is emitted even when empty: the explicit empty list is
+     * what tells the planner that nothing has been done for the current request yet (#2550 A/B: without
+     * the empty heading the selector still read the earlier rows as this turn's).
+     *
+     * @param array $lines
+     * @param string $heading
+     * @param array[] $current
+     * @param array[] $earlier
+     * @return void
+     */
+    private function append_turn_sections(array &$lines, string $heading, array $current, array $earlier): void {
+        if (empty($current) && !empty($earlier)) {
+            $lines[] = '';
+            $lines[] = $heading;
+        } else {
+            $this->append_json_list_section($lines, $heading, $current);
+        }
+        $this->append_json_list_section($lines, 'earlier_turns_' . $heading, $earlier);
+    }
+
+    /**
+     * Split rows carrying _created_at into this turn's and earlier turns' rows, dropping the key.
+     *
+     * A row without a creation time counts as this turn's, as all rows did before the split.
+     *
+     * @param array[] $rows
+     * @param int $turnstart
+     * @return array Two lists: this turn's rows and earlier turns' rows.
+     */
+    private function split_by_turn(array $rows, int $turnstart): array {
+        $current = [];
+        $earlier = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $created = (int)($row['_created_at'] ?? 0);
+            unset($row['_created_at']);
+            if ($turnstart > 0 && $created > 0 && $created < $turnstart) {
+                $earlier[] = $row;
+            } else {
+                $current[] = $row;
+            }
+        }
+        return [$current, $earlier];
     }
 
     /**

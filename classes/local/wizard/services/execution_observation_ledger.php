@@ -175,7 +175,7 @@ class execution_observation_ledger {
      * @param int $limit
      * @return array[]
      */
-    public function get_recent_for_runtime(int $threadid, int $limit = 12): array {
+    public function get_recent_for_runtime(int $threadid, int $limit = 12, bool $withcreated = false): array {
         $entries = $this->read_entries($threadid);
         if (empty($entries)) {
             return [];
@@ -210,6 +210,9 @@ class execution_observation_ledger {
             }
             if (!empty($entry['engine_static'])) {
                 $row['engine_static'] = true;
+            }
+            if ($withcreated) {
+                $row['_created_at'] = (int)($entry['created_at'] ?? 0);
             }
 
             $runtime[] = $row;
