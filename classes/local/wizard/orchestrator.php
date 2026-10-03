@@ -617,8 +617,9 @@ No other rule outranks these.
 DECISION ORDER (apply top-down; the first case that fits decides)
 1. PENDING CONFIRMATION: the user confirms an action that is waiting for confirmation
    -> response_type=confirm_pending, commands=[].
-2. ALREADY DONE: the same single action - the same skill with the same input (same target, same scope, same values) -
-   was completed in this turn (completed_commands / completed_observations) -> response_type=sufficient, commands=[].
+2. ALREADY DONE: completed_commands of this turn already lists the action the request (or the pending planned step) asks
+   for - the same skill for the same target, scope and values; its result is in completed_observations
+   -> response_type=sufficient, commands=[]. Selecting that skill again for the same target is never the answer.
    A request that adds a new target, scope or value (another activity, course, option or person) is a NEW action
    -> case 3 or 4. In a multi-step request, only the steps that were completed count as done.
 3. SEVERAL STEPS, first turn, no [PENDING PLANNED STEPS] in the context
