@@ -58,7 +58,7 @@
         {
             "skill": "mod_booking.book_users",
             "anchor_index": 0,
-            "content_hash": "52e692fb07d81a29d6001bd6a90035837b8a1427afc549f4dfd1cc6c7d39e30f"
+            "content_hash": "75279c3394620b75983c7c071af34b7e7371a0b70e2f54c6adc87f05e2d05227"
         },
         {
             "skill": "mod_booking.book_users",
@@ -468,7 +468,7 @@
         {
             "skill": "mod_booking.search_options",
             "anchor_index": 0,
-            "content_hash": "2df2474d48677063adfa05ebf0649bd99e6bd6726cf948aad7e70e25bd059cbf"
+            "content_hash": "4e3bc45708f5f040b1313abd703f1fde1eff12b375ba0dede7cb806218fd8ab5"
         },
         {
             "skill": "mod_booking.search_options",
@@ -1728,7 +1728,7 @@
         {
             "skill": "core.search_users",
             "anchor_index": 0,
-            "content_hash": "4bcd5fe44a2a277b147d4376fc1dab6fac643159d86583a84f3dd2e378593e99"
+            "content_hash": "278c704ea1c6694a74b8d03fccea774c46165d6df048455061e11ac2d60ab918"
         },
         {
             "skill": "core.search_users",
@@ -2053,7 +2053,7 @@
         {
             "skill": "course.search_courses",
             "anchor_index": 0,
-            "content_hash": "e19406e41639fd06b26a79353fd9cd21aba9e5a27e64e389d14d8e7d4e82de9b"
+            "content_hash": "e947121b40227459f708f6217ecb88e30aa9ea1229603d67d8bf03aea1a09746"
         },
         {
             "skill": "course.search_courses",
