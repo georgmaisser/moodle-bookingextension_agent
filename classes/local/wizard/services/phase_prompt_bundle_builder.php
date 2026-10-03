@@ -441,7 +441,7 @@ class phase_prompt_bundle_builder {
                 . 'Write its message as a statement of what is being done, not as a question.';
         }
 
-        $lines[] = 'Respond now with exactly one JSON object as defined in OUTPUT CONTRACT: no markdown, no code fences.';
+        $lines[] = 'Respond now with exactly one JSON object as defined in OUTPUT CONTRACT.';
 
         return implode("\n", $lines);
     }
