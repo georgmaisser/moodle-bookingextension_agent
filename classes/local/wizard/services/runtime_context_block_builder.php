@@ -295,7 +295,7 @@ class runtime_context_block_builder {
 
             $observationtext = $this->normalize_for_observation_dedup((string)($row['observation'] ?? ''));
             if ($observationtext !== '' && $livehaystack !== '' && str_contains($livehaystack, $observationtext)) {
-                $row['observation'] = '[already shown in OBSERVATION blocks above]';
+                $row['observation'] = '[shown in the OBSERVATION blocks below]';
             }
 
             $rows[] = $row;
