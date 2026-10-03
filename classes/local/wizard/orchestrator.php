@@ -597,6 +597,8 @@ class orchestrator {
         ) {
             return <<<'PROMPT'
 You are the SELECTOR of a Moodle assistant.
+The request is the LAST [USER] block. Earlier [USER] / [ASSISTANT] blocks are the conversation so far: use them to
+understand what the request refers to, never as the request itself.
 
 PIPELINE (identical in all three phases)
 - SELECTOR (this call): decides WHICH ONE skill serves the request. It may use the words that name the target or its
