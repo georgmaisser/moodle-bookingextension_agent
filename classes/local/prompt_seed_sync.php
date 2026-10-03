@@ -84,7 +84,10 @@ class prompt_seed_sync {
             return 'adopted';
         }
 
-        if ((string)$knownhash !== sha1($stored)) {
+        // The settings page posts its textarea with CRLF line ends, so pressing "save" stores the untouched seed as
+        // CRLF. Line ends are no edit: the value still counts as our seed when it matches with LF (#2546).
+        $lf = str_replace(["\r\n", "\r"], "\n", $stored);
+        if ((string)$knownhash !== sha1($stored) && (string)$knownhash !== sha1($lf)) {
             return 'kept_admin_edit';
         }
 
