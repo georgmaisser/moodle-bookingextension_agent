@@ -91,6 +91,30 @@ final class prompt_seed_sync_test extends \advanced_testcase {
     }
 
     /**
+     * Saving the settings page stores the untouched seed with CRLF line ends; it is still our seed.
+     *
+     * The admin textarea posts CRLF. On the VM both prompts were the previous default byte for byte once the
+     * line ends were normalised, yet the raw hash no longer matched, so the upgrade for #2546 kept them as admin
+     * edits and no new default ever arrived on a site where someone had pressed "save".
+     */
+    public function test_a_seed_saved_through_the_settings_page_is_still_replaced(): void {
+        $this->resetAfterTest();
+
+        $seed = "old default\nsecond line\n";
+        set_config(self::SETTING, $seed, 'bookingextension_agent');
+        prompt_seed_sync::remember_seed(self::SETTING, $seed);
+        set_config(self::SETTING, "old default\r\nsecond line\r\n", 'bookingextension_agent');
+
+        $this->assertSame('reseeded', prompt_seed_sync::apply_one(self::SETTING, "new default\n"));
+        $this->assertSame("new default\n", get_config('bookingextension_agent', self::SETTING));
+
+        // A real edit saved through the same page stays an edit.
+        set_config(self::SETTING, "new default\r\nplus a house rule\r\n", 'bookingextension_agent');
+        $this->assertSame('kept_admin_edit', prompt_seed_sync::apply_one(self::SETTING, "newer default\n"));
+        $this->assertSame("new default\r\nplus a house rule\r\n", get_config('bookingextension_agent', self::SETTING));
+    }
+
+    /**
      * An install from before this existed is adopted, not overwritten.
      */
     public function test_an_untracked_install_is_adopted_without_losing_its_value(): void {
