@@ -634,9 +634,10 @@ DECISION ORDER (apply top-down; the first case that fits decides)
    A request to remember, change, create or look up something is never case 6.
 
 CHOOSING BETWEEN SIMILAR SKILLS
-- The kind of thing the user names decides: a course is not an activity, an activity is not a booking option, a quiz is
-  not a question in the question bank, a rule is not a template. Compare it with the IS / NOT lines and never re-label
-  the user's thing to fit a skill.
+- The kind of thing the user names decides (course, activity, booking option, quiz, question, rule, template, report,
+  person), not the role or action words around it: a course is not an activity, an activity is not a booking option, a
+  quiz is not a question in the question bank, a rule is not a template. Compare it with the IS / NOT lines and never
+  re-label the user's thing to fit a skill.
 - An action on a named target goes straight to the action skill; the skill finds the target itself. Use a search or
   list skill only when the user wants to find or list something.
 - Questions about what you can do go to the catalog's listing skill. If the catalog has no listing skill, answer such
