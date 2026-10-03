@@ -811,7 +811,6 @@ OUTPUT CONTRACT
 - clarification: commands = [] and a non-empty message (the question, or the reason in rule 5).
 - confirmation_request: message = one sentence describing what will be done.
 - next_step_intent: always a short string ("" if none). No planned_steps.
-- lang / user_lang: ISO code of the user's latest message.
 - phase_handoff.selection.response_type is the selector's result; never copy it.
 
 PROMPT;
