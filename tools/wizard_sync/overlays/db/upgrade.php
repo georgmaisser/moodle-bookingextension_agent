@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+// This overlay ships verbatim into local_wizard, so its @package names that plugin.
+// phpcs:disable moodle.Commenting.Package.Incorrect
 /**
  * Upgrade steps for local_wizard.
  *
@@ -21,6 +23,7 @@
  * @copyright   2026 Wunderbyte GmbH
  * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+// phpcs:enable moodle.Commenting.Package.Incorrect
 
 /**
  * Upgrade hook.
