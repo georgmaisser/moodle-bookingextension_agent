@@ -173,6 +173,7 @@ class execution_observation_ledger {
      *
      * @param int $threadid
      * @param int $limit
+     * @param bool $withcreated whether each entry also carries its creation time as _created_at
      * @return array[]
      */
     public function get_recent_for_runtime(int $threadid, int $limit = 12, bool $withcreated = false): array {
