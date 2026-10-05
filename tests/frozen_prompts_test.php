@@ -76,6 +76,22 @@ final class frozen_prompts_test extends advanced_testcase {
     }
 
     /**
+     * The synchronizer names an item by its name and its type: told to name it by the type, it linked the word "user"
+     * and left the person's name out.
+     */
+    public function test_the_synchronizer_names_items_by_name_and_type(): void {
+        $prompt = orchestrator::get_default_initial_prompt_template_for_action(\core_ai\aiactions\generate_text::class);
+
+        $this->assertStringContainsString(
+            'Name each item by its name and by the type the observation gives it',
+            $prompt
+        );
+        $this->assertStringContainsString('never by the type alone', $prompt);
+        $this->assertStringContainsString('link its name with exactly that URL', $prompt);
+        $this->assertStringNotContainsString('Name each item by the type the observation gives it', $prompt);
+    }
+
+    /**
      * Selection and construction get no policy blocks; the admin scope restriction is the only addition.
      */
     public function test_no_policy_blocks_restate_the_templates(): void {
