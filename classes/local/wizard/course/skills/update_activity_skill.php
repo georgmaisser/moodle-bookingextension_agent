@@ -189,9 +189,8 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
                 ],
                 'section' => [
                     'type' => 'integer',
-                    'description' => 'Move the activity to this section/topic number (0-based, e.g. 0 = top). Use for '
-                        . '"move it to section 2" or "one section down/up" (compute the target number). Omit to leave '
-                        . 'it where it is. On the site front page everything stays in section 1.',
+                    'description' => 'Section the activity moves to, as a number: "the top section" = 0, "section 2" = 2. '
+                        . 'For "one section down/up" use sectiondelta. Omit to leave it.',
                     'required' => false,
                 ],
                 'sectiondelta' => [
@@ -205,9 +204,8 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
                 'position' => [
                     'type' => 'string',
                     'enum' => ['up', 'down', 'top', 'bottom'],
-                    'description' => 'Move the activity WITHIN its section: up = one place earlier, down = one '
-                        . 'place later, top = first in the section, bottom = last. Use this for "move the page up", '
-                        . '"put the forum at the top". For moving to ANOTHER section use section or sectiondelta.',
+                    'description' => 'Order INSIDE its own section only: up/down = one place, top = first, bottom = last. '
+                        . '"To the top section" or to another section: use section, not this.',
                     'required' => false,
                 ],
                 'coursequery' => [
