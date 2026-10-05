@@ -48,7 +48,8 @@ final class frozen_prompts_test extends advanced_testcase {
         // same ticket was reverted after baseline L67inst, so its hash is the previous one again.
         'selector' => '8e4274b2f5958163d2e60f2e79a4194518071bfc',
         'constructor' => '938fc1cd46a75addff9c26849c8132a1a178afd1',
-        'synchronizer' => 'e172fbd7aa7cb1ca89ea2c533114313b24977ea0',
+        // Synchronizer changed on 2026-10-05: rule 5 names each item by its name and type, never by the type alone.
+        'synchronizer' => 'c312cd5000823ace960a61ba0a638d9619ffe24f',
     ];
 
     /**
