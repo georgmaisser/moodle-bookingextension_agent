@@ -228,4 +228,33 @@ final class create_course_skill_test extends advanced_testcase {
         $skill = $registry->get_skill('course.create_course');
         $this->assertInstanceOf(create_course_skill::class, $skill);
     }
+
+    /**
+     * The duplicate question offers the existing course as a choice, so the selector can fill it with
+     * another skill instead of only being asked whether to create a second one.
+     */
+    public function test_an_existing_course_is_offered_as_a_choice(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        global $USER;
+        $existing = $this->getDataGenerator()->create_course(['fullname' => 'Winter School', 'shortname' => 'WS']);
+
+        $result = (new create_course_skill())->preflight(
+            ['fullname' => 'Winter School'],
+            (int)\context_system::instance()->id,
+            (int)$USER->id
+        );
+
+        $issues = (array)$result->issues;
+        $offered = \bookingextension_agent\local\wizard\services\decision\agent_decision_service::offered_choices($issues);
+        $this->assertCount(1, $offered, json_encode($issues));
+        $this->assertSame('courseid', $offered[0]['field']);
+        $this->assertSame((int)$existing->id, (int)$offered[0]['candidates'][0]['id']);
+        $this->assertSame('Winter School', (string)$offered[0]['candidates'][0]['label']);
+        $this->assertStringContainsString('course.scaffold_course_content', (string)$offered[0]['message']);
+
+        // The confirmation question for a deliberate second course is unchanged.
+        $codes = array_column($issues, 'code');
+        $this->assertContains('DUPLICATE_COURSE_FULLNAME_CONFIRM_REQUIRED', $codes);
+    }
 }
