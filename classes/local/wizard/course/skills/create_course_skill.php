@@ -288,13 +288,34 @@ class create_course_skill extends core_skill_base implements
             !in_array('duplicate_fullname', $overrides, true)
             && $DB->record_exists('course', ['fullname' => $fullname])
         ) {
-            return $this->invalid([[
-                'code' => 'DUPLICATE_COURSE_FULLNAME_CONFIRM_REQUIRED',
-                'severity' => 'needs_confirmation',
-                'message' => 'A course named "' . $fullname . '" already exists.',
-                'user_question' => 'A course with this exact name already exists. Create another one anyway?',
-                'remedy_options' => ['CONFIRM_CREATE_WITH_DUPLICATE_FULLNAME', 'USE_EXISTING_COURSE'],
-            ]]);
+            $existing = [];
+            $courses = $DB->get_records('course', ['fullname' => $fullname], 'id ASC', 'id, fullname, shortname', 0, 5);
+            foreach ($courses as $course) {
+                $existing[] = [
+                    'id' => (int)$course->id,
+                    'label' => (string)$course->fullname,
+                    'shortname' => (string)$course->shortname,
+                ];
+            }
+            return $this->invalid([
+                [
+                    'code' => 'DUPLICATE_COURSE_FULLNAME_CONFIRM_REQUIRED',
+                    'severity' => 'needs_confirmation',
+                    'message' => 'A course named "' . $fullname . '" already exists.',
+                    'user_question' => 'A course with this exact name already exists. Create another one anyway?',
+                    'remedy_options' => ['CONFIRM_CREATE_WITH_DUPLICATE_FULLNAME', 'USE_EXISTING_COURSE'],
+                ],
+                // The existing course is offered as a choice: filling it is another skill's job.
+                [
+                    'code' => 'DUPLICATE_COURSE_FULLNAME_EXISTING_OFFERED',
+                    'severity' => 'needs_clarification',
+                    'message' => 'A course named "' . $fullname . '" already exists. Content for it is '
+                        . 'course.scaffold_course_content with this courseid; a second course with the same name needs '
+                        . 'the user\'s yes.',
+                    'field' => 'courseid',
+                    'candidates' => $existing,
+                ],
+            ]);
         }
 
         $category = $this->resolve_category(trim((string)($input['categoryquery'] ?? '')), $userid);
