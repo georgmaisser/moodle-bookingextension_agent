@@ -704,6 +704,7 @@ $string['aitrial_support_firewall'] = 'Entschuldigung, das hat nicht funktionier
 $string['aitrial_token_expired_subscription'] = 'Ihr Trial-Token ist abgelaufen. Hier können Sie ein Abonnement kaufen: {$a}';
 $string['aitrial_token_received'] = 'Ihr Trial-Token wurde von Wunderbyte empfangen. Sie können jetzt AI für diesen Kurs und dieses Kursmodul aktivieren.';
 $string['aitrial_unexpected_response'] = 'Unerwartete Serverantwort.';
+$string['badge_experimental'] = '<span class="badge bg-danger text-light"><i class="fa fa-flask" aria-hidden="true"></i> Experimentell</span>';
 $string['benchmark_actions'] = 'Aktionen';
 $string['benchmark_back_all_runs'] = '← Alle Durchläufe';
 $string['benchmark_baseline_label'] = 'Baseline-Label';

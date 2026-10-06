@@ -722,6 +722,7 @@ $string['aitrial_support_firewall'] = 'Sorry, that did not work. One possible re
 $string['aitrial_token_expired_subscription'] = 'Your trial token has expired. You can buy a subscription here: {$a}';
 $string['aitrial_token_received'] = 'Your trial token has been received from Wunderbyte. You can now activate AI for this course and this course module.';
 $string['aitrial_unexpected_response'] = 'Unexpected response from server.';
+$string['badge_experimental'] = '<span class="badge bg-danger text-light"><i class="fa fa-flask" aria-hidden="true"></i> Experimental</span>';
 $string['benchmark_actions'] = 'Actions';
 $string['benchmark_back_all_runs'] = '← All Runs';
 $string['benchmark_baseline_label'] = 'Baseline Label';

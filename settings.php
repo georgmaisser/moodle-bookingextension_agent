@@ -79,8 +79,12 @@ if ($adminroot->fulltree) {
     $aisettingspage->add(
         new admin_setting_heading(
             'bookingextension_agent_aisettings_heading',
-            get_string('aisettings', 'bookingextension_agent') . ' ' . get_string('badge:booking10', 'mod_booking')
-                . ' ' . get_string('badge:exp', 'mod_booking'),
+            get_string('aisettings', 'bookingextension_agent')
+                // The "Booking 10" pill is mod_booking's branding: shown only where mod_booking provides it, so the
+                // page also builds in an engine installed without mod_booking.
+                . (get_string_manager()->string_exists('badge:booking10', 'mod_booking')
+                    ? ' ' . get_string('badge:booking10', 'mod_booking') : '')
+                . ' ' . get_string('badge_experimental', 'bookingextension_agent'),
             get_string('aisettings_desc', 'bookingextension_agent')
         )
     );
