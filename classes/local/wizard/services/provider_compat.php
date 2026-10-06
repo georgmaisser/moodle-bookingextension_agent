@@ -180,12 +180,22 @@ class provider_compat {
             }
             $basename = $actionclass::get_basename();
             $settings = (array)(($cfg['settings'] ?? []));
-            foreach (['endpoint', 'model', 'systeminstruction'] as $settingkey) {
+            foreach (['endpoint', 'model'] as $settingkey) {
                 if (isset($settings[$settingkey]) && $settings[$settingkey] !== '') {
                     set_config("action_{$basename}_{$settingkey}", (string)$settings[$settingkey], $component);
                 }
             }
-            if (method_exists(ai_manager::class, 'set_action_state')) {
+            // An empty system instruction is a value, not a gap: the agent brings its complete prompt, and leaving
+            // the key alone kept core's default "summarise / generate" instruction in front of it (demo4, #2569).
+            if (array_key_exists('systeminstruction', $settings)) {
+                set_config("action_{$basename}_systeminstruction", (string)$settings['systeminstruction'], $component);
+            }
+            // The flat per-action state is a 4.5 API (static there); from 5.0 on actions live on provider instances
+            // and this legacy path never runs.
+            if (
+                method_exists(ai_manager::class, 'set_action_state')
+                && (new \ReflectionMethod(ai_manager::class, 'set_action_state'))->isStatic()
+            ) {
                 ai_manager::set_action_state($component, $basename, !empty($cfg['enabled']) ? 1 : 0);
             }
         }

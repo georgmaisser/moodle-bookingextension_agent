@@ -431,8 +431,15 @@ final class phase_model_tiers_test extends abstract_agent_testcase {
         $method = new \ReflectionMethod($provisioner, 'build_actionconfig');
         $config = $method->invoke($provisioner, 'openai', 'https://llm.wunderbyte.at');
 
-        $this->assertSame(['core_ai\\aiactions\\generate_text'], array_keys($config));
-        $this->assertSame('wunderbyte-trial', $config['core_ai\\aiactions\\generate_text']['settings']['model']);
+        // Both core actions the agent routes to on the OpenAI provider (summarise_text carries selection and
+        // construction there, #2569) use the role-less alias.
+        $this->assertSame(
+            ['core_ai\\aiactions\\generate_text', 'core_ai\\aiactions\\summarise_text'],
+            array_keys($config)
+        );
+        foreach ($config as $actionclass => $entry) {
+            $this->assertSame('wunderbyte-trial', $entry['settings']['model'], $actionclass);
+        }
         // The Wunderbyte strategy keeps the role-aware tiers.
         $wb = $method->invoke($provisioner, 'wunderbyte', 'https://llm.wunderbyte.at');
         $this->assertSame('wunderbyte-privat', $wb['core_ai\\aiactions\\generate_text']['settings']['model']);

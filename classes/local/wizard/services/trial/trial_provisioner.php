@@ -553,8 +553,12 @@ class trial_provisioner {
         ];
 
         if ($strategy === 'openai') {
-            // OpenAI provider has no embeddings/planner/agent-reply actions -> reduced skill set (by design).
-            return $generatetext;
+            // OpenAI provider has no embeddings/planner/agent-reply actions -> reduced skill set (by design). The agent
+            // routes selection and construction to summarise_text there (orchestrator_routing_service), so that action
+            // has to reach the trial gateway too - left alone it sent the trial key to api.openai.com (demo4, #2569).
+            $summarise = $generatetext['core_ai\\aiactions\\generate_text'];
+            $summarise['settings']['temperature'] = 0.0;
+            return $generatetext + ['core_ai\\aiactions\\summarise_text' => $summarise];
         }
 
         // Full Wunderbyte trial config: embeddings + compact planner + agent reply + generate_text. No action carries a
