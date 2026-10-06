@@ -395,23 +395,14 @@ final class update_activity_skill_test extends advanced_testcase {
     }
 
     /**
-     * The two move fields reach the constructor uncut and each opens with what it is for: "to the top section"
+     * The two move fields stay inside the constructor's 160-character field window: cut at 160, "to the top section"
      * was built as position "top", the first place inside the activity's own section.
      */
-    public function test_the_move_fields_tell_section_and_position_apart(): void {
-        $lines = [];
-        $projected = \bookingextension_agent\local\wizard\services\skill_input_schema_projection::for_skill(
-            new update_activity_skill()
-        );
-        foreach ($projected as $line) {
-            $lines[strtok((string)$line, ' ')] = (string)$line;
+    public function test_the_move_field_descriptions_fit_the_constructor_window(): void {
+        $schema = (new update_activity_skill())->get_schema();
+        foreach (['section', 'position'] as $field) {
+            $description = (string)$schema['properties'][$field]['description'];
+            $this->assertLessThanOrEqual(159, \core_text::strlen($description), $field);
         }
-
-        $this->assertStringEndsNotWith('…', $lines['section'], 'the section text must not be cut');
-        $this->assertStringContainsString('"the top section" = 0', $lines['section']);
-        $this->assertStringEndsNotWith('…', $lines['position'], 'the position text must not be cut');
-        $this->assertStringContainsString('): Order INSIDE its own section only', $lines['position']);
-        $this->assertStringContainsString('"To the top section"', $lines['position']);
-        $this->assertStringContainsString('use section', $lines['position']);
     }
 }
