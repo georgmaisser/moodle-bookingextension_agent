@@ -47,8 +47,8 @@ class skill_input_schema_projection {
      * the number of omitted fields is stated so the model knows the list was shortened.
      *
      * @param array $schema Skill schema as returned by skill_interface::get_schema().
-     * @param array<string,string> $requesterflags Person field => description of its yes/no requester companion
-     *     (#2569); the companion line follows its field and is kept or dropped together with it.
+     * @param array $requesterflags Person field => description of its yes/no requester companion (#2569); the
+     *     companion line follows its field and is kept or dropped together with it.
      * @return string[] Field lines, empty when the schema declares no input.
      */
     public static function project(array $schema, array $requesterflags = []): array {
