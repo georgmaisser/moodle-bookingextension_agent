@@ -205,6 +205,25 @@ class provider_compat {
     }
 
     /**
+     * Whether a provider instance (or 4.5 view) is of the given provider class.
+     *
+     * Moodle 5.x instances carry the component in ->provider ('aiprovider_openai'), the synthesised 4.5 views the class
+     * name ('aiprovider_openai\\provider'); comparing with the class name alone never matched a real instance, so an
+     * existing instance was never found again and a second one was created (#2569).
+     *
+     * @param object $instance
+     * @param string $providerclass e.g. 'aiprovider_wunderbyte\\provider'
+     * @return bool
+     */
+    public static function is_instance_of_provider(object $instance, string $providerclass): bool {
+        $provider = ltrim((string)($instance->provider ?? ''), '\\');
+        $providerclass = ltrim($providerclass, '\\');
+        return $provider === $providerclass
+            || $provider === self::component_from_providerclass($providerclass)
+            || ltrim(get_class($instance), '\\') === $providerclass;
+    }
+
+    /**
      * Derive the component name from a provider class name.
      *
      * @param string $providerclass e.g. 'aiprovider_openai\\provider'

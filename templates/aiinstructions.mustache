@@ -115,13 +115,25 @@
         <div class="booking-ai-inline-config">
             {{! Revealed by the "Configure" pill: choose auto-config from the existing provider, or a trial. }}
             <div id="booking-ai-config-choice" class="d-none p-3 border-bottom">
+                {{#configure_from_existing_access}}
+                {{! The site already has Wunderbyte access (trial or key on another provider type): configure the
+                    Wunderbyte provider with it - one action, no second trial. }}
+                <p class="mb-2 small text-muted">{{#str}}agent_configure_existing_intro, bookingextension_agent, {{source_provider_name}}{{/str}}</p>
+                <button type="button" id="booking-ai-config-clone" class="btn btn-primary btn-sm" data-contextid="{{contextid}}" data-sesskey="{{sesskey}}">
+                    <i class="fa fa-magic mr-1" aria-hidden="true"></i>{{#str}}agent_configure_existing_button, bookingextension_agent{{/str}}
+                </button>
+                {{/configure_from_existing_access}}
+                {{^configure_from_existing_access}}
                 <p class="mb-2 small text-muted">{{#str}}agent_configure_intro, bookingextension_agent{{/str}}</p>
                 <button type="button" id="booking-ai-config-clone" class="btn btn-primary btn-sm mr-2" data-contextid="{{contextid}}" data-sesskey="{{sesskey}}">
                     <i class="fa fa-clone mr-1" aria-hidden="true"></i>{{#str}}agent_configure_use_provider, bookingextension_agent, {{source_provider_name}}{{/str}}
                 </button>
+                {{#configure_offer_trial}}
                 <button type="button" class="btn btn-outline-secondary btn-sm" data-trial-strategy="wunderbyte">
                     <i class="fa fa-rocket mr-1" aria-hidden="true"></i>{{#str}}agent_configure_use_trial, bookingextension_agent{{/str}}
                 </button>
+                {{/configure_offer_trial}}
+                {{/configure_from_existing_access}}
             </div>
             <div id="booking-ai-consent-step" class="d-none p-3 border-bottom">
                 {{> bookingextension_agent/trial_consent_modal }}

@@ -90,6 +90,7 @@ class aiready {
         $haswunderbyteprovider = false;
         $provideractive = false;
         $sourceprovidername = '';
+        $existingwunderbyteaccess = false;
         $wbinstanceactive = false;
         $courseenabled = false;
         $contextenabled = false;
@@ -142,16 +143,19 @@ class aiready {
                     }
                 }
 
-                // Name of the active non-Wunderbyte provider instance — used as the label for the
-                // "use credentials from <name>" auto-configuration button (the source can be any
-                // OpenAI-compatible provider, not necessarily literally OpenAI).
+                // The active non-Wunderbyte-provider instance whose key the "Configure" dialog would take. When it
+                // already points at the Wunderbyte gateway (a trial or a purchased key on e.g. the core OpenAI
+                // provider), the site HAS Wunderbyte access: the dialog then only configures the Wunderbyte provider
+                // with it and offers no second trial (one per site) (#2569). Otherwise it is a third-party provider and
+                // both choices stay. Moodle 5.x keeps the instance name on the instance, 4.5 views in config['name'].
                 foreach ($providerviews as $inst) {
                     if (
                         !empty($inst->enabled)
-                            && !agent_access_service::instance_targets_wunderbyte_llm($inst)
+                            && strpos((string)($inst->provider ?? ''), 'aiprovider_wunderbyte') === false
                             && !empty($inst->config['apikey'])
                     ) {
-                        $sourceprovidername = (string)($inst->config['name'] ?? '');
+                        $sourceprovidername = trim((string)($inst->name ?? $inst->config['name'] ?? ''));
+                        $existingwunderbyteaccess = agent_access_service::instance_targets_wunderbyte_llm($inst);
                         break;
                     }
                 }
@@ -414,6 +418,10 @@ class aiready {
             // licence) → show the green "active" pill plus a "Get Pro" upgrade link to the store.
             'show_get_pro' => $wbinstanceactive && !agent_access_service::has_full_access(),
             'source_provider_name' => $sourceprovidername,
+            // Configure dialog: existing Wunderbyte access -> one action "configure the Wunderbyte provider with it",
+            // no trial; a third-party source -> take its credentials, or start a trial.
+            'configure_from_existing_access' => $existingwunderbyteaccess,
+            'configure_offer_trial' => !$existingwunderbyteaccess,
             // Live AI-credit bar: only when a Wunderbyte provider exists and the
             // viewer may see organisation-level spend (managers/admins).
             'show_usage_bar' => $haswunderbyteprovider

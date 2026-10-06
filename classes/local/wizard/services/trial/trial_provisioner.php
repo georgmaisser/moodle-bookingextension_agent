@@ -160,9 +160,29 @@ class trial_provisioner {
         $apikey = (string)$source->config['apikey'];
         $chatendpoint = (string)$settings['endpoint'];
         $chatmodel = (string)($settings['model'] ?? '');
-        $sourcename = (string)($source->config['name'] ?? $source->provider);
+        // Moodle 5.x keeps the instance name on the instance itself; config['name'] is the 4.5-shaped view.
+        $sourcename = trim((string)($source->name ?? $source->config['name'] ?? ''));
+        if ($sourcename === '') {
+            $sourcename = (string)$source->provider;
+        }
 
-        $this->upsert_wunderbyte_from_clone($apikey, $chatendpoint, $chatmodel, $sourcename);
+        $this->upsert_wunderbyte_from_clone($apikey, $chatendpoint, $chatmodel);
+
+        // Existing Wunderbyte access (a trial or a purchased key on another provider type) now lives in the
+        // Wunderbyte provider: switch the old instance off so only one Wunderbyte connection is active. It is kept,
+        // not deleted, and a third-party provider that merely lent its key is left alone (#2569).
+        $existingaccess = \bookingextension_agent\local\wizard\services\agent_access_service::instance_targets_wunderbyte_llm(
+            $source
+        );
+        if ($existingaccess && $source instanceof \core_ai\provider) {
+            \core\di::get(\core_ai\manager::class)->disable_provider_instance($source);
+        }
+        if ($existingaccess) {
+            return [
+                'success' => true,
+                'message' => get_string('aitrial_clone_success_existing', 'bookingextension_agent', $sourcename),
+            ];
+        }
 
         return [
             'success' => true,
@@ -351,18 +371,16 @@ class trial_provisioner {
     }
 
     /**
-     * Create or update the Wunderbyte provider instance from cloned third-party credentials.
+     * Create or update the Wunderbyte provider instance ("Wunderbyte") from cloned credentials.
      *
      * @param string $apikey
      * @param string $chatendpoint
      * @param string $chatmodel
-     * @param string $sourcename
      */
     private function upsert_wunderbyte_from_clone(
         string $apikey,
         string $chatendpoint,
-        string $chatmodel,
-        string $sourcename
+        string $chatmodel
     ): void {
         $classname = 'aiprovider_wunderbyte\\provider';
         $config = ['apikey' => $apikey];
@@ -370,14 +388,17 @@ class trial_provisioner {
 
         $existing = array_values(array_filter(
             \bookingextension_agent\local\wizard\services\provider_compat::get_provider_views(),
-            static fn($instance) => (string)($instance->provider ?? '') === $classname
+            static fn($instance) => \bookingextension_agent\local\wizard\services\provider_compat::is_instance_of_provider(
+                $instance,
+                $classname
+            )
         ));
 
         \bookingextension_agent\local\wizard\services\provider_compat::configure_provider(
             $classname,
             $config,
             $actionconfig,
-            'Wunderbyte (' . $sourcename . ')',
+            self::INSTANCE_NAME,
             $existing ? reset($existing) : null,
         );
     }
@@ -503,7 +524,10 @@ class trial_provisioner {
         // On Moodle 4.5 (no instances) this list is empty and configure_provider writes flat config.
         $existing = array_values(array_filter(
             \bookingextension_agent\local\wizard\services\agent_access_service::find_wunderbyte_llm_instances(false),
-            static fn($instance) => (string)($instance->provider ?? '') === $classname
+            static fn($instance) => \bookingextension_agent\local\wizard\services\provider_compat::is_instance_of_provider(
+                $instance,
+                $classname
+            )
         ));
 
         \bookingextension_agent\local\wizard\services\provider_compat::configure_provider(
