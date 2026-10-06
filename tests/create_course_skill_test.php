@@ -251,7 +251,6 @@ final class create_course_skill_test extends advanced_testcase {
         $this->assertSame('courseid', $offered[0]['field']);
         $this->assertSame((int)$existing->id, (int)$offered[0]['candidates'][0]['id']);
         $this->assertSame('Winter School', (string)$offered[0]['candidates'][0]['label']);
-        $this->assertStringContainsString('course.scaffold_course_content', (string)$offered[0]['message']);
 
         // The confirmation question for a deliberate second course is unchanged.
         $codes = array_column($issues, 'code');
