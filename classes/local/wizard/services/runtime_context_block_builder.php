@@ -418,7 +418,7 @@ class runtime_context_block_builder {
             return;
         }
         $statelines[] = 'current_user: ' . implode(' / ', $tokens)
-            . ' (the requester; a person parameter carrying this identity means the requester -> omit it)';
+            . ' (the requester; a person field that means the requester carries this token)';
     }
 
     /**

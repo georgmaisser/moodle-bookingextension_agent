@@ -20,6 +20,7 @@ use context_course;
 use context_system;
 use bookingextension_agent\local\wizard\base_skill;
 use bookingextension_agent\local\wizard\services\observation_time;
+use bookingextension_agent\local\wizard\services\requester_reference;
 
 /**
  * Shared helper base for core Moodle data skills.
@@ -158,14 +159,19 @@ abstract class core_skill_base extends base_skill {
      */
     protected function resolve_userid(array $input, int $currentuserid): int {
         $query = trim((string)($input['userquery'] ?? ''));
-        // No person named means the requester; the constructor omits self-references deterministically
-        // (wave 26 / F81: the former "current" / "me" word check was a language-bound detection).
+        // No person named means the requester; so does the requester marker the engine puts where the constructor
+        // named the requester (#2569). Wave 26 / F81: the former "current" / "me" word check was a language-bound
+        // detection.
         if ($query === '') {
             return $currentuserid;
         }
 
         if (ctype_digit($query)) {
             return (int)$query;
+        }
+        if (requester_reference::is_marker($query)) {
+            global $USER;
+            return $currentuserid > 0 ? $currentuserid : (int)($USER->id ?? 0);
         }
 
         // An address-shaped token is an address wherever it stands ("Herr <e-mail>", run 25; #2453).
@@ -568,6 +574,11 @@ abstract class core_skill_base extends base_skill {
         $query = trim($query);
         if ($query === '') {
             return [];
+        }
+        // The requester marker (#2569) names the acting user; every person lookup of the core skills passes here.
+        if (requester_reference::is_marker($query)) {
+            global $USER;
+            $query = (string)(int)($USER->id ?? 0);
         }
 
         require_once($CFG->libdir . '/datalib.php');

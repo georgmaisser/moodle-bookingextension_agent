@@ -295,22 +295,7 @@ class preflight_pipeline {
      * @return bool
      */
     private function is_person_field(?skill_interface $skill, string $field, privacy_anonymizer $anonymizer): bool {
-        $normalized = \core_text::strtolower(trim($field));
-        if ($normalized === '') {
-            return false;
-        }
-        if ($anonymizer->is_person_reference_field($normalized)) {
-            return true;
-        }
-        if ($skill === null || !method_exists($skill, 'get_person_reference_fields')) {
-            return false;
-        }
-        foreach ((array)$skill->get_person_reference_fields() as $declared) {
-            if (\core_text::strtolower(trim((string)$declared)) === $normalized) {
-                return true;
-            }
-        }
-        return false;
+        return requester_reference::is_person_field($skill, $field, $anonymizer);
     }
 
     /**

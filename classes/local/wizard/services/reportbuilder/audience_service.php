@@ -16,6 +16,7 @@
 
 namespace bookingextension_agent\local\wizard\services\reportbuilder;
 
+use bookingextension_agent\local\wizard\services\requester_reference;
 use bookingextension_agent\local\wizard\services\target_query_normalizer;
 use context_system;
 use core_component;
@@ -23,6 +24,7 @@ use core_reportbuilder\local\audiences\base as audience_base;
 use core_reportbuilder\local\helpers\audience as audience_helper;
 use core_reportbuilder\local\models\audience as audience_model;
 use core_text;
+
 
 /**
  * Report audiences: the registered audience types and how to build their configuration.
@@ -413,6 +415,10 @@ final class audience_service {
             $reference = trim((string)$reference);
             if ($reference === '') {
                 continue;
+            }
+            // The requester marker (#2569) names the actor.
+            if (requester_reference::is_marker($reference)) {
+                $reference = (string)$actorid;
             }
             $candidates = [];
             if (ctype_digit($reference)) {

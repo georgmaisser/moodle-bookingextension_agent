@@ -26,6 +26,7 @@
 namespace bookingextension_agent;
 
 use bookingextension_agent\local\wizard\privacy_anonymizer;
+use bookingextension_agent\local\wizard\services\requester_reference;
 use bookingextension_agent\local\wizard\services\runtime_context_block_builder;
 
 defined('MOODLE_INTERNAL') || die();
@@ -103,9 +104,9 @@ final class self_reference_construction_test extends abstract_agent_testcase {
 
     /**
      * The constructor sees the rule and the requester's anonymized identity; a person parameter
-     * bound to that identity is stripped so the skill acts for the current user.
+     * bound to that identity carries the requester marker so the skill acts for the current user.
      */
-    public function test_person_parameter_bound_to_requester_is_stripped(): void {
+    public function test_person_parameter_bound_to_requester_carries_the_marker(): void {
         $this->setUser($this->teacher);
         $_POST['sesskey'] = sesskey();
         [$store, $runtime, $threadid] = $this->build_runtime();
@@ -135,19 +136,21 @@ final class self_reference_construction_test extends abstract_agent_testcase {
         // re-plan once more after the read-only execution).
         $this->assertGreaterThanOrEqual(2, count($this->scriptedplannerprompts));
         $constructorprompt = $this->scriptedplannerprompts[1];
-        // Wave 32 (frozen prompt spec): the requester rule stands once, in the constructor template (rule 4).
-        $this->assertStringContainsString('When the request is about the requester themselves, leave every', $constructorprompt);
+        // Wave 32 (frozen prompt spec): the requester rule stands once, in the constructor template (rule 4);
+        // #2569: the requester is named with the current_user token, not by leaving the field out.
+        $this->assertStringContainsString('put the current_user token into it', $constructorprompt);
         $this->assertStringContainsString('current_user: ' . $nametoken, $constructorprompt);
         $this->assertStringNotContainsString(fullname($this->teacher), $constructorprompt);
 
-        // The person parameter never reached the skill; the skill acted for the current user.
+        // The requester's identity never reached the skill; the requester marker did (#2569), which every person
+        // resolver reads as the acting user.
         $input = $this->executed_input($threadid);
-        $this->assertArrayNotHasKey('userquery', $input);
+        $this->assertSame(requester_reference::MARKER, (string)($input['userquery'] ?? ''));
         $this->assertSame('Sprechstunde', (string)($input['optionquery'] ?? ''));
     }
 
     /**
-     * A person parameter naming somebody else is left untouched — the strip is identity equality only.
+     * A person parameter naming somebody else is left untouched — the marking is identity equality only.
      */
     public function test_person_parameter_naming_another_person_is_kept(): void {
         $this->setUser($this->teacher);

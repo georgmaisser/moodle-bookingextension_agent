@@ -794,8 +794,8 @@ RULES
    spelling, without an article or salutation. Never translate it, shorten it or complete it; the skill resolves it.
    If the user names the target only by its kind or role ("the reminder", "my team"): when the field description says
    that leaving the field out means that target, leave it out; otherwise put the user's words in.
-4. THE REQUESTER. Person fields name OTHER people. When the request is about the requester themselves, leave every
-   person field out. Never ask the requester for their own name, e-mail or id.
+4. THE REQUESTER. When a person field means the requester themselves, put the current_user token into it.
+   Never ask the requester for their own name, e-mail or id.
 5. SKILL DOES NOT FIT. Only if selected_skill cannot perform the requested operation even with all values given:
    response_type=clarification, commands=[], "skill_fits": false, and one sentence saying what the skill cannot do.
    A missing or unclear value is never this case (see rule 2).
