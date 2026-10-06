@@ -136,9 +136,8 @@ final class self_reference_construction_test extends abstract_agent_testcase {
         // re-plan once more after the read-only execution).
         $this->assertGreaterThanOrEqual(2, count($this->scriptedplannerprompts));
         $constructorprompt = $this->scriptedplannerprompts[1];
-        // Wave 32 (frozen prompt spec): the requester rule stands once, in the constructor template (rule 4);
-        // #2569: the requester is named with the current_user token, not by leaving the field out.
-        $this->assertStringContainsString('put the current_user token into it', $constructorprompt);
+        // Wave 32 (frozen prompt spec): the requester rule stands once, in the constructor template (rule 4).
+        $this->assertStringContainsString('When the request is about the requester themselves, leave every', $constructorprompt);
         $this->assertStringContainsString('current_user: ' . $nametoken, $constructorprompt);
         $this->assertStringNotContainsString(fullname($this->teacher), $constructorprompt);
 
