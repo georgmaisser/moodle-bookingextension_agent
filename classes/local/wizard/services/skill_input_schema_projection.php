@@ -47,14 +47,18 @@ class skill_input_schema_projection {
      * the number of omitted fields is stated so the model knows the list was shortened.
      *
      * @param array $schema Skill schema as returned by skill_interface::get_schema().
+     * @param array<string,string> $requesterflags Person field => description of its yes/no requester companion
+     *     (#2569); the companion line follows its field and is kept or dropped together with it.
      * @return string[] Field lines, empty when the schema declares no input.
      */
-    public static function project(array $schema): array {
+    public static function project(array $schema, array $requesterflags = []): array {
         $properties = (array)($schema['properties'] ?? ($schema['input']['properties'] ?? []));
         if (empty($properties)) {
             return [];
         }
 
+        // Each entry is a group: the field line plus, for a declared person field, its yes/no requester companion
+        // (#2569). A group is listed or left out as a whole.
         $required = [];
         $optional = [];
         foreach ($properties as $name => $definition) {
@@ -62,11 +66,14 @@ class skill_input_schema_projection {
             if ($name === '' || !is_array($definition)) {
                 continue;
             }
-            $line = self::field_line($name, $definition);
+            $group = [self::field_line($name, $definition)];
+            if (array_key_exists($name, $requesterflags)) {
+                $group[] = requester_reference::flag_name($name) . ' (boolean, optional): ' . $requesterflags[$name];
+            }
             if (!empty($definition['required'])) {
-                $required[] = $line;
+                $required[] = $group;
             } else {
-                $optional[] = $line;
+                $optional[] = $group;
             }
         }
 
@@ -74,23 +81,25 @@ class skill_input_schema_projection {
             return [];
         }
 
-        $lines = $required;
+        $lines = array_merge([], ...$required);
+        $requiredcount = count($lines);
         $used = self::length_of($lines);
         $omitted = 0;
-        foreach ($optional as $line) {
-            if ($used + strlen($line) + 1 > self::MAX_CHARS) {
+        foreach ($optional as $group) {
+            $size = self::length_of($group);
+            if ($used + $size > self::MAX_CHARS) {
                 $omitted++;
                 continue;
             }
-            $lines[] = $line;
-            $used += strlen($line) + 1;
+            array_push($lines, ...$group);
+            $used += $size;
         }
 
         if ($omitted > 0) {
             // The note itself has to fit: optional lines give way for it, required ones never do.
             $note = $omitted . ' further optional fields exist and are not listed here. '
                 . 'Ask the user only for what the request itself leaves open.';
-            while (count($lines) > count($required) && self::length_of($lines) + strlen($note) + 1 > self::MAX_CHARS) {
+            while (count($lines) > $requiredcount && self::length_of($lines) + strlen($note) + 1 > self::MAX_CHARS) {
                 array_pop($lines);
                 $omitted++;
                 $note = $omitted . ' further optional fields exist and are not listed here. '
@@ -105,6 +114,9 @@ class skill_input_schema_projection {
     /**
      * Project the input fields of a skill object.
      *
+     * A skill declares the person fields whose empty value does not mean the requester through the duck-typed
+     * get_requester_flag_fields(); each gets a yes/no companion line right after it (#2569).
+     *
      * @param object $skill Any skill exposing get_schema().
      * @return string[] Field lines, empty when the skill declares no input or has no schema.
      */
@@ -112,8 +124,7 @@ class skill_input_schema_projection {
         if (!method_exists($skill, 'get_schema')) {
             return [];
         }
-
-        return self::project((array)$skill->get_schema());
+        return self::project((array)$skill->get_schema(), requester_reference::flag_fields($skill));
     }
 
     /**

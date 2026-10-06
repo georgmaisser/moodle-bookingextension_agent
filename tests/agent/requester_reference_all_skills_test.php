@@ -32,6 +32,7 @@ use bookingextension_agent\local\wizard\services\reportbuilder\audience_service;
 use bookingextension_agent\local\wizard\services\requester_reference;
 use bookingextension_agent\local\wizard\services\runtime_context_block_builder;
 use bookingextension_agent\local\wizard\services\security\authorization_service;
+use bookingextension_agent\local\wizard\services\skill_input_schema_projection;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -47,6 +48,7 @@ require_once(__DIR__ . '/abstract_agent_testcase.php');
  * @group bookingextension_agent_agent
  * @covers \bookingextension_agent\local\wizard\services\requester_reference
  * @covers \bookingextension_agent\local\wizard\services\decision\agent_decision_service
+ * @covers \bookingextension_agent\local\wizard\services\skill_input_schema_projection
  */
 final class requester_reference_all_skills_test extends abstract_agent_testcase {
     protected function setUp(): void {
@@ -129,5 +131,65 @@ final class requester_reference_all_skills_test extends abstract_agent_testcase 
         $hits = $lookup->invoke($core, requester_reference::MARKER, 5);
         $this->assertCount(1, $hits);
         $this->assertSame($userid, (int)$hits[0]['userid']);
+    }
+
+    /**
+     * Every person field a skill names through a yes/no companion (its empty value does not mean the requester) is a
+     * person field, its companion line follows the field line in the constructor's view, no other field gets one, and
+     * a set companion becomes the requester marker - next to the people already named - while an unset one only
+     * disappears.
+     */
+    public function test_requester_flag_fields_get_a_companion_that_becomes_the_marker(): void {
+        $store = new \bookingextension_agent\local\wizard\conversation_store();
+        $anonymizer = new privacy_anonymizer($store);
+        $declared = 0;
+        foreach (skill_registry::make_default()->get_skills() as $skillname => $skill) {
+            $flags = requester_reference::flag_fields($skill);
+            $properties = (array)($skill->get_schema()['properties'] ?? []);
+            $lines = skill_input_schema_projection::for_skill($skill);
+            foreach ($lines as $i => $line) {
+                if (!str_contains($line, '_is_requester (boolean')) {
+                    continue;
+                }
+                $field = substr($line, 0, (int)strpos($line, '_is_requester ('));
+                $this->assertArrayHasKey($field, $flags, "{$skillname}: a companion only for a declared field");
+                $this->assertStringStartsWith($field . ' (', (string)($lines[$i - 1] ?? ''), "{$skillname}.{$field}");
+            }
+            foreach ($flags as $field => $description) {
+                if (!array_key_exists($field, $properties)) {
+                    continue;
+                }
+                $declared++;
+                $this->assertNotSame('', $description, "{$skillname}.{$field}");
+                $this->assertTrue(
+                    requester_reference::is_person_field($skill, (string)$field, $anonymizer),
+                    "{$skillname}.{$field} must be a person field"
+                );
+                $flag = requester_reference::flag_name($field);
+                $marked = requester_reference::apply_flags($skill, [$flag => true]);
+                $this->assertSame([$field => requester_reference::MARKER], $marked);
+                $this->assertSame([], requester_reference::apply_flags($skill, [$flag => false]));
+                $this->assertSame(['x' => 1], requester_reference::apply_flags($skill, ['x' => 1]));
+            }
+        }
+        $this->assertGreaterThan(0, $declared, 'at least one skill must declare a requester flag field');
+
+        // Next to the people already named: a comma list and an array keep them.
+        $booking = skill_registry::make_default()->get_skill('mod_booking.update_option');
+        $this->assertSame(
+            ['selectusersquery' => 'Anna Muster, ' . requester_reference::MARKER],
+            requester_reference::apply_flags($booking, [
+                'selectusersquery' => 'Anna Muster',
+                'selectusersquery_is_requester' => true,
+            ])
+        );
+        $audience = skill_registry::make_default()->get_skill('report.set_report_audience');
+        $this->assertSame(
+            ['userqueries' => ['ANON_USER_9_both', requester_reference::MARKER]],
+            requester_reference::apply_flags($audience, [
+                'userqueries' => ['ANON_USER_9_both'],
+                'userqueries_is_requester' => 'true',
+            ])
+        );
     }
 }

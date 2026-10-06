@@ -99,6 +99,15 @@ class schedule_report_skill extends report_skill_base implements skill_trigger_p
     }
 
     /**
+     * Left out, the schedule has no view-as person, so the requester is named through a yes/no companion (#2569).
+     *
+     * @return array<string,string> field => description of its yes/no companion
+     */
+    public function get_requester_flag_fields(): array {
+        return ['viewas_userquery' => 'true when the report is viewed as the requester.'];
+    }
+
+    /**
      * Schema.
      *
      * @return array

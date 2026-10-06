@@ -78,6 +78,78 @@ final class requester_reference {
     }
 
     /**
+     * Name of the yes/no companion of a person field whose empty value does not mean the requester.
+     *
+     * Constructor rule 4 tells the model to leave every person field out for the requester, so a trainer or a person
+     * list can never carry the requester (A/B 2026-10-06, training thread 203: 24 of 24 left out, with any field
+     * hint). A yes/no field is no person field: the model sets it (16 of 16, 0 of 36 false). The skill declares such
+     * fields with get_requester_flag_fields(); the engine shows the companion and turns it into the marker.
+     *
+     * @param string $field
+     * @return string
+     */
+    public static function flag_name(string $field): string {
+        return $field . '_is_requester';
+    }
+
+    /**
+     * The person fields of a skill that are named through a yes/no companion, with the companion's description.
+     *
+     * @param object|null $skill
+     * @return array<string,string> field => description of its companion
+     */
+    public static function flag_fields(?object $skill): array {
+        if ($skill === null || !method_exists($skill, 'get_requester_flag_fields')) {
+            return [];
+        }
+        $fields = [];
+        foreach ((array)$skill->get_requester_flag_fields() as $field => $description) {
+            $field = trim((string)$field);
+            if ($field !== '') {
+                $fields[$field] = trim((string)$description);
+            }
+        }
+        return $fields;
+    }
+
+    /**
+     * Turn the yes/no companions in a constructed input into the requester marker and drop them.
+     *
+     * A set companion puts the marker into its person field - next to the people already named there (a list or a
+     * comma-separated value), or as the only value. An unset or false companion only disappears, so the skill never
+     * sees a key it does not know. Structural only: the key name and a boolean.
+     *
+     * @param object|null $skill
+     * @param array $input
+     * @return array
+     */
+    public static function apply_flags(?object $skill, array $input): array {
+        foreach (array_keys(self::flag_fields($skill)) as $field) {
+            $flag = self::flag_name($field);
+            if (!array_key_exists($flag, $input)) {
+                continue;
+            }
+            $set = filter_var($input[$flag], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) === true;
+            unset($input[$flag]);
+            if (!$set) {
+                continue;
+            }
+            $current = $input[$field] ?? null;
+            if (is_array($current)) {
+                if (!in_array(self::MARKER, $current, true)) {
+                    $current[] = self::MARKER;
+                }
+                $input[$field] = $current;
+            } else if (is_string($current) && trim($current) !== '' && !self::is_marker($current)) {
+                $input[$field] = $current . ', ' . self::MARKER;
+            } else {
+                $input[$field] = self::MARKER;
+            }
+        }
+        return $input;
+    }
+
+    /**
      * The identities that name the requester in a person field, lower-cased: the anonymized tokens the model sees
      * and, defensively, the clear-text id, username, e-mail and full name.
      *

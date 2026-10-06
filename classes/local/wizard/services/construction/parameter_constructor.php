@@ -20,6 +20,7 @@ namespace bookingextension_agent\local\wizard\services\construction;
 
 use bookingextension_agent\local\wizard\dto\parameter_construction_result;
 use bookingextension_agent\local\wizard\services\input_payload_pruner;
+use bookingextension_agent\local\wizard\services\requester_reference;
 use bookingextension_agent\local\wizard\skill_registry;
 
 /**
@@ -54,6 +55,9 @@ class parameter_constructor {
         // Schema/hook-driven only — no domain field names live here. Provider-owned
         // skill_input_normalizers handle domain coercion (e.g. booking timestamp / self-reference
         // fields); free-text hydration is driven by the schema `from_user_message` flag (audit 05-F01).
+        // #2569: the yes/no companion of a person field becomes the requester marker before anything else reads the
+        // input, so no normalizer or structural check ever sees a key the skill does not declare.
+        $rawinput = requester_reference::apply_flags($this->registry->get_skill($skillname), $rawinput);
         $input = $this->canonicalize_command_input($skillname, $rawinput);
         $input = $this->hydrate_user_message_fields($skillname, $input, $lastusermessage);
         $input = input_payload_pruner::prune($input);

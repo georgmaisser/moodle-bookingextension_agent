@@ -178,6 +178,64 @@ final class requester_person_field_test extends abstract_agent_testcase {
     }
 
     /**
+     * The shape the constructor gives under the frozen rule 4 (A/B 2026-10-06 on the recorded call: 16 of 16): no
+     * person in teacherquery, the yes/no companion set. The requester is the trainer of the created option.
+     */
+    public function test_requester_flag_as_trainer_reaches_the_confirmation(): void {
+        global $DB;
+
+        $this->setUser($this->teacher);
+        $_POST['sesskey'] = sesskey();
+        [$store, $runtime, $threadid] = $this->build_runtime();
+        $threadid = (int)$threadid;
+
+        $parameters = $this->recorded_parameters('');
+        unset($parameters['teacherquery']);
+        $parameters['teacherquery_is_requester'] = true;
+        $this->install_scripted_planner([
+            $this->selector_skill_call('mod_booking.create_option'),
+            $this->constructor_confirmation_request('mod_booking.create_option', $parameters),
+        ]);
+
+        $result = $this->chat(
+            'Erstelle fünf Veranstaltungen "Abendveranstaltung 1" für jeden Wochentag nächster Woche von 10 bis 12. '
+                . 'Trainer bin ich. Es können 20 Leute kommen.',
+            $threadid,
+            $store,
+            $runtime
+        );
+        $diagnostics = json_encode([
+            'response_type' => $result['response_type'] ?? null,
+            'issue_codes' => $this->issue_codes($result),
+            'errors' => $result['errors'] ?? null,
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        $this->assertSame('confirmation_request', (string)($result['response_type'] ?? ''), $diagnostics);
+
+        $staged = array_values(array_filter(
+            (new queue_manager($store))->get_queue_items($threadid),
+            static fn(array $item): bool => (string)($item['status'] ?? '') === 'blocked_confirmation'
+        ));
+        $this->assertCount(1, $staged, $diagnostics);
+        $prepared = (array)($staged[0]['prepared_input'] ?? []);
+        $this->assertArrayNotHasKey('teacherquery_is_requester', $prepared, 'the companion never reaches the skill');
+        $this->assertSame((string)$this->teacher->email, (string)($prepared['teacheremail'] ?? ''), $diagnostics);
+
+        $queueitemid = (string)($staged[0]['queue_item_id'] ?? '');
+        $contextid = $this->booking_contextid();
+        $userid = (int)$this->teacher->id;
+        (new pending_intent_service($store))->set($threadid, $userid, $contextid, ['queue_item_ids' => [$queueitemid]]);
+        (new confirm_run_service(skill_registry::make_default(), $store, new authorization_service()))
+            ->confirm($contextid, 0, $threadid, $userid, $queueitemid, false);
+        $optionid = (int)$DB->get_field(
+            'booking_options',
+            'id',
+            ['bookingid' => (int)$this->booking->id, 'text' => 'Abendveranstaltung 1']
+        );
+        $this->assertGreaterThan(0, $optionid);
+        $this->assertTrue($DB->record_exists('booking_teachers', ['optionid' => $optionid, 'userid' => $userid]));
+    }
+
+    /**
      * A bare word in teacherquery never becomes a search hit on unrelated users: the turn ends as a clarification
      * (not as an error) that offers the matching users as choices, and the reply facts name no user id.
      */

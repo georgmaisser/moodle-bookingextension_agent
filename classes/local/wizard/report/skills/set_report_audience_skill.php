@@ -95,6 +95,15 @@ class set_report_audience_skill extends report_skill_base implements skill_trigg
     }
 
     /**
+     * Left out, the manual audience names nobody, so the requester is named through a yes/no companion (#2569).
+     *
+     * @return array<string,string> field => description of its yes/no companion
+     */
+    public function get_requester_flag_fields(): array {
+        return ['userqueries' => 'true when the requester belongs to the audience.'];
+    }
+
+    /**
      * Schema.
      *
      * @return array

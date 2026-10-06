@@ -152,6 +152,15 @@ class get_report_details_skill extends report_skill_base implements skill_trigge
     }
 
     /**
+     * Left out, no delivery is diagnosed, so the requester is named through a yes/no companion (#2569).
+     *
+     * @return array<string,string> field => description of its yes/no companion
+     */
+    public function get_requester_flag_fields(): array {
+        return ['diagnose_userquery' => 'true when the delivery is diagnosed for the requester.'];
+    }
+
+    /**
      * Nothing to ground: the target is the user's own wording or a known id.
      *
      * @param int $contextid
