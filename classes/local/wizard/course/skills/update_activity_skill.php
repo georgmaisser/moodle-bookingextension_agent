@@ -183,8 +183,7 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
                 'settings' => [
                     'type' => 'object',
                     'description' => 'Module-specific fields to change, as an object. Example: for a URL '
-                        . '{"externalurl":"https://…"}; for a Page {"content":"…"}. Only set what should change. '
-                        . 'This is NOT for moving the activity — use "section" for that.',
+                        . '{"externalurl":"https://…"}; for a Page {"content":"…"}. Only set what should change.',
                     'required' => false,
                 ],
                 'section' => [
@@ -195,10 +194,8 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
                 ],
                 'sectiondelta' => [
                     'type' => 'integer',
-                    'description' => 'Move the activity RELATIVE to where it is now: 1 = one section down, '
-                        . '-1 = one section up, 2 = two down. Use this whenever the user describes the movement '
-                        . 'relative ("one section down") instead of naming a number — you do not need to know the '
-                        . 'current section, this skill resolves it. Do not combine with "section".',
+                    'description' => 'Move the activity RELATIVE to where it is now: 1 = one section down, -1 = one '
+                        . 'section up, 2 = two down.',
                     'required' => false,
                 ],
                 'position' => [
@@ -211,7 +208,7 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
                 'coursequery' => [
                     'type' => 'string',
                     'description' => 'Target a DIFFERENT course than the current one, ONLY when the user names one. '
-                        . 'The system resolves the name; no course.search_courses lookup first. Leave empty otherwise.',
+                        . 'The system resolves the name; no course.search_courses lookup first.',
                     'required' => false,
                 ],
                 'courseid' => [
