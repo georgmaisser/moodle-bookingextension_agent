@@ -162,9 +162,7 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
                 'section' => [
                     'type' => 'string',
                     'description' => 'Where to place the activity: pass the user\'s wording verbatim — "top", '
-                        . '"bottom", a section name (e.g. "Week 2"), or a section '
-                        . 'number. Leave empty if the user did not say where; the system then lists the course '
-                        . 'sections and asks.',
+                        . '"bottom", a section name (e.g. "Week 2"), or a section number.',
                     'required' => false,
                 ],
                 'settings' => [
