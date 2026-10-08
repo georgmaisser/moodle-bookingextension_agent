@@ -140,6 +140,8 @@ class create_course_skill extends core_skill_base implements
             // Wave 32 (SCC-4, mutual fence with course.scaffold_course_content; owner of this card: group A1).
             'not' => 'Adding to an existing course (add_activity, mod_booking.create_option, scaffold_course_content); '
                 . 'a self-paced offer (mod_booking.create_selflearning_option).',
+            'when' => 'The user wants a new, empty Moodle course created that does not exist yet; making a named course '
+                . 'complete is scaffold_course_content.',
             'readonly' => false,
             'example_utterances' => [
                 'Create a new course about the life of the Vikings',
