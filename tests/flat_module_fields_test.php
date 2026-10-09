@@ -67,6 +67,26 @@ final class flat_module_fields_test extends advanced_testcase {
     }
 
     /**
+     * Every field text touched by #2600 fits the 160-character window the constructor sees per field.
+     */
+    public function test_touched_field_texts_fit_the_constructor_window(): void {
+        $fields = [
+            [new add_activity_skill(), ['name', 'externalurl', 'content', 'settings']],
+            [new update_activity_skill(), ['externalurl', 'content', 'settings']],
+            [new \bookingextension_agent\local\wizard\course\skills\list_categories_skill(), ['limit']],
+            [new \bookingextension_agent\local\wizard\report\skills\search_reports_skill(), ['limit']],
+        ];
+        foreach ($fields as [$skill, $names]) {
+            $properties = $skill->get_schema()['properties'];
+            foreach ($names as $name) {
+                $text = trim((string)preg_replace('/\s+/u', ' ', (string)($properties[$name]['description'] ?? '')));
+                $this->assertNotSame('', $text, $skill->get_name() . '.' . $name);
+                $this->assertLessThanOrEqual(160, \core_text::strlen($text), $skill->get_name() . '.' . $name . ': ' . $text);
+            }
+        }
+    }
+
+    /**
      * update_activity changes the link of a URL given only as the flat externalurl field.
      */
     public function test_update_changes_the_link_of_a_url(): void {
