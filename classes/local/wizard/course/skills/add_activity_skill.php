@@ -149,8 +149,10 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
                     'type' => 'string',
                     // L45 AA-3 (thread 14947): "un lien vers le site de la fédération nationale" names what the link is, yet the
                     // constructor asked for a name; the user's words for what the activity holds or points to are its name.
-                    'description' => 'The name shown in the course: the user\'s words for the activity or for what it '
-                        . 'holds or points to. Optional for a label/text area (the text is the content).',
+                    // Wunderbyte-GmbH/Wunderbyte-GmbH#2600 follow-up: with the link as its own field Gemma left the name out
+                    // more often (AA-3 replay 8/10, AA-2 4/6 with a name); "always set it" restored it (10/10, 6/6).
+                    'description' => 'The name shown in the course: the user\'s words for the activity or what it holds '
+                        . 'or points to. Always set it, except for a label/text area.',
                     'required' => false,
                 ],
                 'intro' => [
