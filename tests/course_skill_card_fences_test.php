@@ -53,13 +53,14 @@ final class course_skill_card_fences_test extends \advanced_testcase {
     }
 
     /**
-     * The course analysis names the two booking skills that read like it on a booking page.
+     * The course analysis names the option-details skill that reads like it on a booking page, but not the option
+     * search: naming the search in this fence pulled plain "which options are there" requests away from it.
      */
-    public function test_the_course_analysis_fences_off_the_booking_option_skills(): void {
+    public function test_the_course_analysis_fences_off_the_option_details_skill_only(): void {
         $not = (string)((new analyze_course_structure_skill())->get_schema()['not'] ?? '');
 
         $this->assertStringContainsString('mod_booking.get_option_details', $not);
-        $this->assertStringContainsString('mod_booking.search_options', $not);
+        $this->assertStringNotContainsString('mod_booking.search_options', $not);
         $this->assertLessThanOrEqual(self::NOT_CAP, \core_text::strlen($not), $not);
     }
 
