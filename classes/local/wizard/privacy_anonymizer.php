@@ -52,9 +52,6 @@ class privacy_anonymizer {
     public const PROTECTED_WORDS_DEFAULT = [
         // German.
         'von', 'bei', 'mit', 'und', 'oder', 'der', 'die', 'das', 'dem', 'den', 'des',
-        // 2026-10-21 (#2614 class, found with #2680): "bei allen Buchungsoptionen" was masked as the lastname of a
-        // fixture account (Rachel Allen) and the bulk request never reached the skill.
-        'alle', 'allem', 'allen', 'aller', 'alles',
         'ein', 'eine', 'einer', 'einem', 'einen', 'ich', 'du', 'er', 'sie', 'wir', 'ihr',
         'sein', 'ihre', 'ihren', 'soll', 'sollen', 'bitte', 'hier', 'dort', 'im', 'in',
         'am', 'an', 'auf', 'zu', 'zur', 'zum',
@@ -1022,7 +1019,11 @@ class privacy_anonymizer {
 
             $firstnorm = $this->normalize_name($firsttoken);
             $lastnorm = $this->normalize_name($lasttoken);
-            if ($firstnorm === '' || $lastnorm === '') {
+            if (
+                $firstnorm === '' || $lastnorm === ''
+                || $this->is_protected_word($firstnorm)
+                || $this->is_protected_word($lastnorm)
+            ) {
                 continue;
             }
 
@@ -1057,13 +1058,6 @@ class privacy_anonymizer {
                 $replaceword[$i + 1] = '';
                 $skipword[$i + 1] = true;
                 $count++;
-                continue;
-            }
-
-            // 2026-10-21 (#2614, #2680): a protected word vetoes only the split path here and pass 2 below. A pair
-            // that is the full name of a real account ("Rachel Allen") stays a high-confidence match above, so
-            // protecting "allen" (German "bei allen Buchungsoptionen") never leaves that surname in clear text.
-            if ($this->is_protected_word($firstnorm) || $this->is_protected_word($lastnorm)) {
                 continue;
             }
 
