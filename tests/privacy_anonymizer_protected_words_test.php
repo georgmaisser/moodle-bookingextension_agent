@@ -132,4 +132,55 @@ final class privacy_anonymizer_protected_words_test extends \advanced_testcase {
         $this->assertStringNotContainsString('bitte', $sanitized);
         $this->assertStringContainsString('Kurse', $sanitized);
     }
+
+    /**
+     * German "alle" in all its forms ships in the default: "bei allen Buchungsoptionen" collided with a fixture
+     * account's lastname Allen (#2614 class, found with #2680) and the bulk request never reached the skill.
+     */
+    public function test_default_list_contains_the_german_forms_of_all(): void {
+        foreach (['alle', 'allem', 'allen', 'aller', 'alles'] as $word) {
+            $this->assertContains($word, privacy_anonymizer::PROTECTED_WORDS_DEFAULT);
+        }
+    }
+
+    /**
+     * A protected word inside a sentence stays in clear text and raises no decision suspect, although an
+     * account carries it as lastname.
+     */
+    public function test_protected_word_in_a_sentence_is_no_lastname_suspect(): void {
+        $this->resetAfterTest();
+        set_config('aiprivacyprotectedwords', implode(', ', privacy_anonymizer::PROTECTED_WORDS_DEFAULT), 'bookingextension_agent');
+        $this->getDataGenerator()->create_user([
+            'firstname' => 'Rachel',
+            'lastname' => 'Allen',
+            'email' => 'rachel.allen@example.com',
+        ]);
+        [$anonymizer, $threadid] = $this->prepare();
+
+        $sentence = 'Setze bei allen Buchungsoptionen, die noch kein Kursformat haben, das Kursformat auf Präsenz.';
+        $result = $anonymizer->precheck_user_message($threadid, $sentence);
+        $this->assertSame($sentence, (string)$result['sanitizedmessage']);
+        $this->assertSame([], (array)($result['suspects'] ?? $result['collisionsuspects'] ?? []));
+    }
+
+    /**
+     * The full name of a real account is masked even when one of its parts is a protected word: the list guards
+     * single words and must not leave "Allen" in clear text next to a masked first name.
+     */
+    public function test_full_name_of_a_real_account_wins_over_the_protected_list(): void {
+        $this->resetAfterTest();
+        set_config('aiprivacyprotectedwords', implode(', ', privacy_anonymizer::PROTECTED_WORDS_DEFAULT), 'bookingextension_agent');
+        $this->getDataGenerator()->create_user([
+            'firstname' => 'Rachel',
+            'lastname' => 'Allen',
+            'email' => 'rachel.allen@example.com',
+        ]);
+        [$anonymizer, $threadid] = $this->prepare();
+
+        $result = $anonymizer->precheck_user_message($threadid, 'Buche Rachel Allen in den Pilates-Kurs ein.');
+        $sanitized = (string)$result['sanitizedmessage'];
+        $this->assertStringNotContainsString('Allen', $sanitized);
+        $this->assertStringNotContainsString('Rachel', $sanitized);
+        $this->assertMatchesRegularExpression('/ANON_USER_\d+_both/', $sanitized);
+    }
 }
