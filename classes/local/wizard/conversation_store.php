@@ -247,15 +247,22 @@ class conversation_store implements agent_conversation_store {
             throw new \coding_exception('Cannot add message to unknown thread id: ' . $threadid);
         }
 
+        $now = time();
         $record = new stdClass();
         $record->threadid = $threadid;
         $record->userid = (int)$thread->userid;
         $record->role = $role;
         $record->content = $content;
         $record->structuredjson = !empty($structured) ? json_encode($structured) : null;
-        $record->timecreated = time();
+        $record->timecreated = $now;
 
-        return (int) $DB->insert_record('bx_agent_ai_messages', $record);
+        $messageid = (int) $DB->insert_record('bx_agent_ai_messages', $record);
+
+        // A message is activity on the thread: keep the thread's timemodified at its last activity, so the
+        // retention cleanup never treats a thread in use as idle (Wunderbyte-GmbH/Wunderbyte-GmbH#2585).
+        $DB->set_field('bx_agent_ai_threads', 'timemodified', $now, ['id' => $threadid]);
+
+        return $messageid;
     }
 
     /**
