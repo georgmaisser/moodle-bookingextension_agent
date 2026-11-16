@@ -18,6 +18,7 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\task;
 
+use bookingextension_agent\local\wizard\config\retention_setting;
 use bookingextension_agent\local\wizard\conversation_store;
 use core\task\scheduled_task;
 
@@ -45,7 +46,12 @@ class cleanup_old_llm_debug_task extends scheduled_task {
      * Execute the task.
      */
     public function execute(): void {
-        $days = (int)(get_config('bookingextension_agent', 'llm_debug_retention_days') ?: 30);
+        // 0 keeps the entries forever, as the setting describes; only an unset setting falls back to 30 days.
+        $days = retention_setting::days('llm_debug_retention_days', 30);
+        if ($days === 0) {
+            mtrace('LLM debug exchanges are kept forever (retention: 0 days).');
+            return;
+        }
         $store = new conversation_store();
         $deleted = $store->purge_old_llm_debug_entries($days);
         mtrace("Cleaned {$deleted} old LLM debug exchange(s) (retention: {$days} days).");
