@@ -134,11 +134,15 @@ $teacherskills = [
     'course_analyze_course_structure' => [CONTEXT_COURSE, 'read', 0],
     'course_diagnose_user_in_course' => [CONTEXT_COURSE, 'read', RISK_PERSONAL],
     'course_enrol_user' => [CONTEXT_COURSE, 'write', 0],
+    // Searches a free image library with words taken from the course; shows candidates only.
+    'course_find_course_images' => [CONTEXT_COURSE, 'read', 0],
     // Lists all course categories visible to the user (site-wide read).
     'course_list_categories' => [CONTEXT_SYSTEM, 'read', 0],
     'course_scaffold_course_content' => [CONTEXT_COURSE, 'write', RISK_SPAM | RISK_XSS],
     // Searches across all courses on the site.
     'course_search_courses' => [CONTEXT_SYSTEM, 'read', 0],
+    // Sets the course image and writes its credit into the course summary (as moodle/course:update).
+    'course_set_course_image' => [CONTEXT_COURSE, 'write', RISK_XSS],
     'course_update_activity' => [CONTEXT_COURSE, 'write', RISK_XSS],
     'course_update_quiz' => [CONTEXT_COURSE, 'write', RISK_SPAM | RISK_XSS],
     'question_generate_questions' => [CONTEXT_COURSE, 'write', RISK_SPAM | RISK_XSS],

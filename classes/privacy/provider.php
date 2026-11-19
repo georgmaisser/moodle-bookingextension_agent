@@ -166,6 +166,15 @@ class provider implements
             'privacy:metadata:llm_provider'
         );
 
+        // The image search sends search words written from course content to an online image library.
+        $collection->add_external_location_link(
+            'image_library',
+            [
+                'query' => 'privacy:metadata:image_library:query',
+            ],
+            'privacy:metadata:image_library'
+        );
+
         return $collection;
     }
 

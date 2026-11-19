@@ -158,6 +158,34 @@ if ($adminroot->fulltree) {
     );
     $aisettingspage->add($contentmodel);
 
+    // Image search: the skills that propose a course image search a free online image library. Off by default,
+    // because the search words leave the site. The contact goes into the User-Agent the library sees.
+    $aisettingspage->add(
+        new admin_setting_configcheckbox(
+            'bookingextension_agent/imageinput_enabled',
+            get_string('imageinput_enabled', 'bookingextension_agent'),
+            get_string('imageinput_enabled_desc', 'bookingextension_agent'),
+            0
+        )
+    );
+    $aisettingspage->add(
+        new admin_setting_configcheckbox(
+            'bookingextension_agent/imagesearch_enabled',
+            get_string('imagesearch_enabled', 'bookingextension_agent'),
+            get_string('imagesearch_enabled_desc', 'bookingextension_agent'),
+            0
+        )
+    );
+    $aisettingspage->add(
+        new admin_setting_configtext(
+            'bookingextension_agent/imagesearch_contact',
+            get_string('imagesearch_contact', 'bookingextension_agent'),
+            get_string('imagesearch_contact_desc', 'bookingextension_agent'),
+            '',
+            PARAM_TEXT
+        )
+    );
+
     // Hard cap on the character length of a single user message. Messages longer than this are rejected
     // immediately at the entry point (before any provider/token spend). Keeps the agent public-facing but
     // bounded. Generous by default; can be lowered (e.g. 100) for very tight abuse control.

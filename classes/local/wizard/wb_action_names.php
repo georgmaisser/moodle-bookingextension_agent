@@ -49,6 +49,9 @@ class wb_action_names {
     /** Content creation (course chapters, outlines, quiz questions) on the content model. */
     public const GENERATE_CONTENT = 'aiprovider_wunderbyte\\aiactions\\generate_content';
 
+    /** A question about images: the prompt and the images go to a model that can see them. */
+    public const INSPECT_IMAGE = 'aiprovider_wunderbyte\\aiactions\\inspect_image';
+
     /**
      * Whether an action class is one of the Wunderbyte planner actions (selector or constructor).
      *

@@ -32,6 +32,13 @@ $definitions = [
         'staticaccelerationsize' => 5,
         'ttl' => 900,
     ],
+    // Library images the model accepted for a course (image search); the skill that stores an image reads it.
+    'imagecandidates' => [
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'staticacceleration' => false,
+        'ttl' => 3600,
+    ],
     'trialnonce' => [
         'mode' => cache_store::MODE_APPLICATION,
         'simplekeys' => true,

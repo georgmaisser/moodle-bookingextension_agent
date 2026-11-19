@@ -1999,6 +1999,41 @@
             "content_hash": "678c75930fb37fa529848c9d209df34f068c3d540fdfaf9486aea54afc1e6415"
         },
         {
+            "skill": "course.find_course_images",
+            "anchor_index": 0,
+            "content_hash": "e670950e6ad8cf54d6eda4630b810fbc9fb11635af324362cb9b8c616300ae91"
+        },
+        {
+            "skill": "course.find_course_images",
+            "anchor_index": 1,
+            "content_hash": "89975fe9345703af20df24173a41a55fa7a9de07154bf0a2bb508be303d9e7b0"
+        },
+        {
+            "skill": "course.find_course_images",
+            "anchor_index": 2,
+            "content_hash": "50266a1cd881c4bdd25ba603f1d397cd36c66822badf249559c508dc1d1317c4"
+        },
+        {
+            "skill": "course.find_course_images",
+            "anchor_index": 3,
+            "content_hash": "2b53d5038f25f2af8999a1c8dc961e346b41dd2358a7568ce6ec3734b24891a6"
+        },
+        {
+            "skill": "course.find_course_images",
+            "anchor_index": 4,
+            "content_hash": "7c0c5fc57682496e98c5fbf3503826978051a65f01ab539e9bb69a882383b63c"
+        },
+        {
+            "skill": "course.find_course_images",
+            "anchor_index": 5,
+            "content_hash": "b4f380d11a14df08fc9103cf90438656f0f4cfafcadc8ed0e71fdc405f6ab4b8"
+        },
+        {
+            "skill": "course.find_course_images",
+            "anchor_index": 6,
+            "content_hash": "3d69409e63f645cc51a9f3ac3f160d5935c2ddf6235c7fd544e145bc054a4bf8"
+        },
+        {
             "skill": "course.list_categories",
             "anchor_index": 0,
             "content_hash": "3610250c224964cad2f12d5dd1b84fc811849edfcd52581b80af3e1bab38812f"
@@ -2087,6 +2122,36 @@
             "skill": "course.search_courses",
             "anchor_index": 4,
             "content_hash": "755646d5754175fc47fcbf9321c9b9ed5d09d0fc1c3d315a5bbfae98ec459808"
+        },
+        {
+            "skill": "course.set_course_image",
+            "anchor_index": 0,
+            "content_hash": "3f94c904f55faa95db2f5c590e4f5b7d4d078d17524ce4f88db37e7865439b1d"
+        },
+        {
+            "skill": "course.set_course_image",
+            "anchor_index": 1,
+            "content_hash": "26f0f63be216a4b9eeccafc2f78af07673db3516e4b24e6769234d042fde40a5"
+        },
+        {
+            "skill": "course.set_course_image",
+            "anchor_index": 2,
+            "content_hash": "ba00a6252955fd6dd0aa9acd9c672cfbae52fdb1d03f24f6360a2ec9a7dcc7f8"
+        },
+        {
+            "skill": "course.set_course_image",
+            "anchor_index": 3,
+            "content_hash": "dd681d6892fdfe7c001372b58241fb4d9f2953428145ec4c069c267650b05925"
+        },
+        {
+            "skill": "course.set_course_image",
+            "anchor_index": 4,
+            "content_hash": "cb8406bf25bfa14a8188994f9acb71352dab63b29c9862372138c6459d14174c"
+        },
+        {
+            "skill": "course.set_course_image",
+            "anchor_index": 5,
+            "content_hash": "73ecde3443593f9819d6a2703af97ec9deb46e56757ca3a329d2007f5c5ebfc5"
         },
         {
             "skill": "course.update_activity",

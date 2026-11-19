@@ -323,6 +323,100 @@ class llm_call_service {
     }
 
     /**
+     * Whether a provider on this site can answer a question about an image (the inspect_image action).
+     *
+     * @return bool
+     */
+    public static function image_inspection_available(): bool {
+        if (self::$testresponder !== null) {
+            return true;
+        }
+        if (!class_exists(wb_action_names::INSPECT_IMAGE)) {
+            return false;
+        }
+        try {
+            return di::get(ai_manager::class)->is_action_available(wb_action_names::INSPECT_IMAGE);
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Ask the model a question about one or more images.
+     *
+     * The debug log keeps the prompt and the answer; the image data is never logged.
+     *
+     * @param int $threadid
+     * @param int $contextid
+     * @param int $userid
+     * @param string $source
+     * @param string $prompt
+     * @param array[] $images Each as ['mimetype' => string, 'data' => base64 string].
+     * @return array{success:bool,rawcontent:string,errormessage:string,errorcode:int,errorname:string,finishreason:string}
+     */
+    public function invoke_image_inspection(
+        int $threadid,
+        int $contextid,
+        int $userid,
+        string $source,
+        string $prompt,
+        array $images
+    ): array {
+        // TEST-ONLY deterministic path, as for the text actions.
+        if (self::$testresponder !== null) {
+            return $this->invoke_once($threadid, $contextid, $userid, $source, $prompt, wb_action_names::INSPECT_IMAGE);
+        }
+        $rawcontent = '';
+        $errormessage = '';
+        $errorcode = 0;
+        $finishreason = '';
+        $success = false;
+        try {
+            if (!self::image_inspection_available()) {
+                throw new \moodle_exception('No AI provider on this site accepts images.');
+            }
+            $context = context::instance_by_id($contextid, MUST_EXIST);
+            $actionclass = wb_action_names::INSPECT_IMAGE;
+            $action = new $actionclass(
+                contextid: (int)$context->id,
+                userid: $userid,
+                prompttext: $prompt,
+                images: array_values($images),
+            );
+            $response = di::get(ai_manager::class)->process_action($action);
+            $responsedata = (array)$response->get_response_data();
+            $rawcontent = (string)($responsedata['generatedcontent'] ?? '');
+            $finishreason = (string)($responsedata['finishreason'] ?? '');
+            $success = (bool)$response->get_success();
+            $errormessage = (string)($response->get_errormessage() ?? '');
+            $errorcode = (int)$response->get_errorcode();
+        } catch (\Throwable $e) {
+            $success = false;
+            $errormessage = $e->getMessage();
+            $errorcode = (int)$e->getCode();
+        }
+        llm_debug_logger::log_exchange(
+            $this->store,
+            $threadid,
+            (int)$contextid,
+            $userid,
+            $source,
+            $prompt . "\n[" . count($images) . ' image(s) attached]',
+            $rawcontent,
+            $success,
+            $errormessage
+        );
+        return [
+            'success' => $success,
+            'rawcontent' => $rawcontent,
+            'errormessage' => $errormessage,
+            'errorcode' => $errorcode,
+            'errorname' => '',
+            'finishreason' => $finishreason,
+        ];
+    }
+
+    /**
      * Invoke a phase call and repeat it once when the provider cut the output off.
      *
      * A reasoning runaway of the upstream model ends at the output-token cap: the call succeeds
