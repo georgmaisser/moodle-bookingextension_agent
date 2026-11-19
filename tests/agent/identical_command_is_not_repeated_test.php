@@ -34,8 +34,12 @@ require_once(__DIR__ . '/scripted_llm_trait.php');
  * identical command {userid: 7164} five times in a row, each time receiving the identical observation, before it
  * answered. Nothing in the engine compared a new command with what the turn had already executed. The state
  * knows every executed command; a command whose skill and input already ran in this turn is a loop, not a plan:
- * the planner gets one retry hint to answer from the observation or change the input, and when it repeats
- * itself again the turn ends as a synthesis from what exists - the command never runs a second time.
+ * the turn ends as a synthesis from what exists - the command never runs a second time.
+ *
+ * Until 2026-11-19 the planner first got one retry hint and the turn ended on the second repeat. Session suite SES10
+ * (Wunderbyte-GmbH/Wunderbyte-GmbH#2787, threads 32442 ff.): the hint changed nothing in 18 of 18 loops; over all runs
+ * on the test VM since 2026-08-31 the same command followed the hint in 186 of 304 turns and 'sufficient' in 69. The
+ * hint round cost a selector and a constructor call, so the first identical repeat ends the turn now.
  *
  * @group bookingextension_agent
  * @group bookingextension_agent_agent
@@ -81,10 +85,7 @@ final class identical_command_is_not_repeated_test extends abstract_agent_testca
         $this->install_scripted_planner([
             $this->selector_skill_call('wizard.list_memories'),
             $this->constructor_skill_call('wizard.list_memories', []),
-            // Thread 9469: the planner asks for exactly the same thing again ...
-            $this->selector_skill_call('wizard.list_memories'),
-            $this->constructor_skill_call('wizard.list_memories', []),
-            // ... and again after the retry hint.
+            // Thread 9469: the planner asks for exactly the same thing again.
             $this->selector_skill_call('wizard.list_memories'),
             $this->constructor_skill_call('wizard.list_memories', []),
             // The synthesis answers from the observation that exists.
@@ -105,6 +106,56 @@ final class identical_command_is_not_repeated_test extends abstract_agent_testca
             array_map('strval', (array)($result['issue_codes'] ?? [])),
             'the loop is named by its state, not hidden'
         );
+    }
+
+    /**
+     * Thread 32442 (SES10, S5-2) re-enacted: the course structure was read completely, the selector picked the same
+     * skill and the constructor built the same input. The turn ends there - two selector and two constructor calls,
+     * no hint round, one run.
+     */
+    public function test_the_first_identical_repeat_ends_the_turn(): void {
+        global $DB;
+        $this->setUser($this->teacher);
+        $_POST['sesskey'] = sesskey();
+        [$store, $runtime, $threadid] = $this->build_runtime();
+        $skill = 'course.analyze_course_structure';
+        $this->install_phase_scripted_planner(
+            array_fill(0, 4, $this->selector_skill_call($skill)),
+            array_fill(0, 4, $this->constructor_skill_call($skill, []))
+        );
+
+        $result = $this->chat('Wie ist dieser Kurs aufgebaut?', (int)$threadid, $store, $runtime);
+
+        $codes = array_map('strval', (array)($result['issue_codes'] ?? []));
+        $this->assertSame('SCSC', $this->scripted_phase_sequence(), 'no hint round after the repeat');
+        $this->assertSame('sufficient', (string)($result['response_type'] ?? ''), json_encode($codes));
+        $this->assertContains('LOOP_IDENTICAL_COMMAND_REPEATED', $codes, 'the loop is named by its state');
+        $executed = 0;
+        foreach ($DB->get_records('bx_agent_ai_runs', ['threadid' => (int)$threadid]) as $run) {
+            $executed += count((array)json_decode((string)$run->commandsjson, true));
+        }
+        $this->assertSame(1, $executed, 'the command ran exactly once');
+        foreach ($this->scriptedplannerprompts as $prompt) {
+            $this->assertStringNotContainsString('already ran in this turn', $prompt, 'the hint is gone');
+        }
+    }
+
+    /**
+     * Other contract breaches keep their one hint round: an unreadable selection is asked for once more.
+     */
+    public function test_a_parse_error_still_gets_its_hint_round(): void {
+        $this->setUser($this->teacher);
+        $_POST['sesskey'] = sesskey();
+        [$store, $runtime, $threadid] = $this->build_runtime();
+        $this->install_phase_scripted_planner(
+            ['this is not json', $this->planner_sufficient('Hallo.')],
+            []
+        );
+
+        $this->chat('Hallo', (int)$threadid, $store, $runtime);
+
+        $this->assertSame('SS', $this->scripted_phase_sequence(), 'one retry after the parse error');
+        $this->assertStringContainsString('The previous output was not valid JSON', (string)$this->scriptedplannerprompts[1]);
     }
 
     /**

@@ -79,14 +79,12 @@ class agent_runtime {
         'execution_result',
     ];
 
+    /** A command that already ran in this turn with the same input was constructed again; it ends the turn. */
+    private const IDENTICAL_REPEAT_ISSUE_CODE = 'LOOP_IDENTICAL_COMMAND_REPEATED';
+
     /** Planner contract issue codes eligible for one framework retry hint in the loop. */
     private const LOOP_RETRYABLE_ISSUE_CODES = [
         'CONTRACT_PARSE_ERROR',
-        // The planner re-issued a command that already ran in this turn with the same input (F77,
-        // baseline run 31 thread 9469: core.diagnose_permissions five times with {userid: 7164} after
-        // five identical observations). One retry hint tells it to answer from the observation or to
-        // change the input; a second identical command ends the turn as a synthesis of what exists.
-        'LOOP_IDENTICAL_COMMAND_REPEATED',
         'CONTRACT_SELECTION_SINGLE_COMMAND_REQUIRED',
         // Command-bearing response_type with empty commands[] (interpreter's single
         // error_result() site). A transient planner flake — observed on the guest-claim
@@ -425,6 +423,20 @@ class agent_runtime {
                 continue;
             }
 
+            if (
+                (string)($result['response_type'] ?? '') === 'error'
+                && in_array(self::IDENTICAL_REPEAT_ISSUE_CODE, (array)($result['issue_codes'] ?? []), true)
+            ) {
+                // The planner re-issued a command that already ran in this turn with the same input (F77, baseline
+                // run 31 thread 9469): nothing new can be learned, so the turn answers from the observations it has
+                // (the synchronizer always answers). Until 2026-11-19 a hint round came first; measured over the
+                // session suite and all runs of the test VM it was followed by the same command in 61 percent and by
+                // 'sufficient' in 23 percent of 304 turns (Wunderbyte-GmbH/Wunderbyte-GmbH#2787), so it is gone.
+                $result['response_type'] = 'sufficient';
+                $result['commands'] = [];
+                $result['message'] = '';
+            }
+
             $exhaustedissuecode = $this->resolve_exhausted_framework_retry_issue_code($result, $frameworkretrycounts);
             if ($exhaustedissuecode !== null) {
                 $result['issue_codes'] = array_values(array_unique(array_merge(
@@ -449,12 +461,6 @@ class agent_runtime {
                     // 3719ff9 an invented key ended as 'error'; same doctrine as the empty-message
                     // codes below). Repair hints stay planner-only.
                     $result['response_type'] = 'clarification';
-                    $result['commands'] = [];
-                    $result['message'] = '';
-                } else if ($exhaustedissuecode === 'LOOP_IDENTICAL_COMMAND_REPEATED') {
-                    // The planner insisted on a command that already ran: nothing new can be learned, so
-                    // the turn answers from the observations it has (the synchronizer always answers).
-                    $result['response_type'] = 'sufficient';
                     $result['commands'] = [];
                     $result['message'] = '';
                 } else if (in_array($exhaustedissuecode, self::EMPTY_MESSAGE_ISSUE_CODES, true)) {
@@ -1080,8 +1086,6 @@ class agent_runtime {
         // own rules. The former hints carried rules of their own that contradicted the phase prompts (ask for any
         // missing value, 'sufficient' in the constructor).
         $hints = [
-            'LOOP_IDENTICAL_COMMAND_REPEATED' => 'The same command (same skill, same input) already ran in this turn; '
-                . 'its result is in the observations above. Running it again returns the same result.',
             'CONTRACT_PARSE_ERROR' => 'The previous output was not valid JSON. Return exactly one JSON object as '
                 . 'defined in the OUTPUT CONTRACT.',
             'CONTRACT_STRUCTURAL_MISMATCH' => 'The previous parameters used keys or value shapes that selected_skill '
@@ -1501,9 +1505,9 @@ class agent_runtime {
      * A command that already ran in this turn with the same input does not run again (F77).
      *
      * The state remembers every command that ran in this turn, as the planner sent it. When every command of a
-     * new skill_call already ran, nothing new can happen: the step becomes a retryable planner error that carries
-     * the hint, and the loop decides from its retry budget (one hint, then synthesis). A command that was stopped
-     * before it ran (a preflight question, offered choices) is not remembered.
+     * new skill_call already ran, nothing new can happen: the step is marked with the issue code and the loop ends
+     * the turn as a synthesis of what exists. A command that was stopped before it ran (a preflight question,
+     * offered choices) is not remembered.
      *
      * @param array $result
      * @param agent_state $state
@@ -1533,7 +1537,7 @@ class agent_runtime {
         $result['message'] = '';
         $result['issue_codes'] = array_values(array_unique(array_merge(
             array_map('strval', (array)($result['issue_codes'] ?? [])),
-            ['LOOP_IDENTICAL_COMMAND_REPEATED']
+            [self::IDENTICAL_REPEAT_ISSUE_CODE]
         )));
         return $result;
     }
