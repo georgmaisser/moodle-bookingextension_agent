@@ -47,6 +47,20 @@ You can also attach a PDF simply so the wizard can read it and work with its con
 - "Read this PDF and summarise the key points." *(attach the PDF)*
 - "Use this document to help me set up the course." *(attach the PDF)*
 
+## Attaching an image for the wizard to read
+
+If your site has switched on **Read attached images**, the wizard can also work with what an image shows: a photo of a notice, a screenshot of a table, a scanned page. Attach the image and say what you want:
+
+- "Which courses are on this notice and what do they cost?" *(attach the image)*
+- "Create a course for the first entry on this notice." *(attach the image)*
+
+The AI model looks at the image once and the wizard works with its description and with the text it read in the image. Two things to know:
+
+- The image itself is sent to the AI provider and cannot be masked beforehand. Names and e-mail addresses in the text read from it are masked like in any other text.
+- The wizard works from a description, so very small print or fine detail can be missed. Check what it read before you confirm a change.
+
+With the setting off, an image is only passed on as a file, for example as a header image.
+
 ## It tells you when it expects a file
 
 You don't have to remember the rules. If your request needs a file — like asking for a header image — and nothing is attached, the wizard prompts you:

@@ -31,6 +31,8 @@ namespace bookingextension_agent\local\wizard\services\attachment;
  *  - Image attachments: a compact text hint is prepended so the LLM can
  *    reference the token as a skill parameter. The token stays alive so a
  *    skill can later resolve it via attachment_token_service::resolve().
+ *    When the site lets the model read attached images, what the image shows
+ *    and the text in it follow as an image block.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -47,6 +49,7 @@ class attachment_processor {
      * @param \bookingextension_agent\local\wizard\privacy_anonymizer|null $anonymizer Masks the document
      *      text like a user message (full names of site users, e-mail addresses); null leaves it as it is.
      * @param int    $threadid    Thread whose tokens the masking uses.
+     * @param image_description_service|null $describer Reads attached images; null leaves an image as a hint only.
      * @return string Augmented message ready to store.
      */
     public function augment_message(
@@ -55,7 +58,8 @@ class attachment_processor {
         int $userid,
         int $contextid,
         ?\bookingextension_agent\local\wizard\privacy_anonymizer $anonymizer = null,
-        int $threadid = 0
+        int $threadid = 0,
+        ?image_description_service $describer = null
     ): string {
         if (empty($attachments)) {
             return $message;
@@ -103,6 +107,20 @@ class attachment_processor {
             } else if ($type === 'image') {
                 // Prepend a compact text hint. Token stays alive for skill resolution.
                 $prefixes[] = "[Attachment: {$filename} — Attachment-Token: {$token}]";
+                $seen = $describer !== null
+                    ? $describer->describe((string)$resolved['path'], $message, $threadid, $contextid, $userid)
+                    : null;
+                if ($seen !== null) {
+                    // The model's reading is text from outside, as the text of a PDF is: it is masked the same way.
+                    $body = "Shows: " . $seen['shows'];
+                    if ($seen['text'] !== '') {
+                        $body .= "\nText in the image:\n" . $seen['text'];
+                    }
+                    if ($anonymizer !== null && $threadid > 0) {
+                        $body = $anonymizer->anonymize_document_text($threadid, $body)['text'];
+                    }
+                    $prefixes[] = "--- IMAGE: {$filename} ---\n{$body}\n--- END IMAGE ---";
+                }
             }
             // Unknown types are silently ignored.
         }

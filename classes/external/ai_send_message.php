@@ -34,6 +34,7 @@ use core_external\external_value;
 use bookingextension_agent\local\wizard\agent_runtime;
 use bookingextension_agent\local\wizard\services\security\authorization_service;
 use bookingextension_agent\local\wizard\services\attachment\attachment_processor;
+use bookingextension_agent\local\wizard\services\attachment\image_description_service;
 use bookingextension_agent\local\wizard\conversation_store;
 use bookingextension_agent\local\wizard\interpreter;
 use bookingextension_agent\local\wizard\orchestrator;
@@ -274,7 +275,7 @@ class ai_send_message extends external_api {
         $precheck = $anonymizer->precheck_user_message($threadid, $message);
         $message = (string)($precheck['sanitizedmessage'] ?? $message);
 
-        // Augment message with any file attachments (images → token hint, PDFs → extracted text).
+        // Augment message with any file attachments (images → token hint and what the model sees in them, PDFs → extracted text).
         $attachmentlist = @json_decode($attachments, true);
         if (is_array($attachmentlist) && count($attachmentlist) > 0) {
             // The text of a PDF is masked like the message itself before it is stored and sent.
@@ -284,7 +285,8 @@ class ai_send_message extends external_api {
                 (int)$USER->id,
                 $contextid,
                 $anonymizer,
-                $threadid
+                $threadid,
+                new image_description_service($store)
             );
         }
 
