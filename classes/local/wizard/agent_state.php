@@ -58,8 +58,10 @@ final class agent_state {
      * @var array[]
      */
     private array $steps = [];
-    /** @var array<string,bool> Fingerprints of commands handed to execution in this turn (F77). */
+    /** @var array<string,bool> Fingerprints of commands that ran in this turn (F77). */
     private array $sentfingerprints = [];
+    /** @var string[] Fingerprints of the commands of the current step, not yet known to have run. */
+    private array $stagedfingerprints = [];
 
     /**
      * Ordered list of structured observation strings, one per completed step.
@@ -178,7 +180,31 @@ final class agent_state {
     }
 
     /**
-     * Whether a command with this fingerprint was already handed to execution in this turn.
+     * Note the commands of the current step; they count as sent only once the step has run.
+     *
+     * Thread 9914 (2026-11-19): a command was remembered when it was handed on, before preflight could stop it. A
+     * skill that offered choices instead of running was then reported as "already ran" when the planner constructed
+     * the same input again. The commands of a step that ends without execution are dropped with the next step.
+     *
+     * @param string[] $fingerprints
+     * @return void
+     */
+    public function stage_commands(array $fingerprints): void {
+        $this->stagedfingerprints = array_values(array_map('strval', $fingerprints));
+    }
+
+    /**
+     * The current step ran: its commands are remembered as sent.
+     *
+     * @return void
+     */
+    public function remember_staged_commands(): void {
+        $this->remember_sent_commands($this->stagedfingerprints);
+        $this->stagedfingerprints = [];
+    }
+
+    /**
+     * Whether a command with this fingerprint already ran in this turn.
      *
      * @param string $fingerprint
      * @return bool

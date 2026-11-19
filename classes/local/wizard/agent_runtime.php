@@ -353,6 +353,7 @@ class agent_runtime {
                     $stepresults,
                     $observation
                 );
+                $state->remember_staged_commands();
 
                 if (!$this->budget_guard_allows_next_llm_call($step, $limit)) {
                     return $this->finalize_and_persist_budget_exceeded($threadid, $result, $state, $limit);
@@ -1499,9 +1500,10 @@ class agent_runtime {
     /**
      * A command that already ran in this turn with the same input does not run again (F77).
      *
-     * The state remembers every command this turn handed to execution, as the planner sent it. When every
-     * command of a new skill_call was already sent, nothing new can happen: the step becomes a retryable
-     * planner error that carries the hint, and the loop decides from its retry budget (one hint, then synthesis).
+     * The state remembers every command that ran in this turn, as the planner sent it. When every command of a
+     * new skill_call already ran, nothing new can happen: the step becomes a retryable planner error that carries
+     * the hint, and the loop decides from its retry budget (one hint, then synthesis). A command that was stopped
+     * before it ran (a preflight question, offered choices) is not remembered.
      *
      * @param array $result
      * @param agent_state $state
@@ -1519,8 +1521,9 @@ class agent_runtime {
         $fingerprints = array_map([self::class, 'command_fingerprint'], $commands);
         foreach ($fingerprints as $fingerprint) {
             if (!$state->was_sent($fingerprint)) {
-                // At least one command is new: the whole step goes to execution and is remembered.
-                $state->remember_sent_commands($fingerprints);
+                // At least one command is new: the whole step goes on. It is remembered once it ran (run_loop_frame);
+                // a step that preflight stops ran nothing and is no repeat when it is constructed again.
+                $state->stage_commands($fingerprints);
                 return $result;
             }
         }
