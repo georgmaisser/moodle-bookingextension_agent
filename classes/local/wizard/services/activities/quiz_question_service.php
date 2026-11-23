@@ -190,11 +190,16 @@ class quiz_question_service {
             'valid' => false,
             // The user's side of it, should the retry not heal: the same question the skill asks in preflight.
             'errors' => [preg_replace('/\s+/', ' ', self::build_source_clarification([], $lead)['message'])],
-            // The planner's side of it (never shown to the user).
+            // The planner's side of it (never shown to the user). The wording is measured (2812, replay of the retry
+            // call, 15 calls per prompt): "If the user named a topic ..., put it into content" left the topic out in 5
+            // of 30 calls (Graz) and 3 of 15 (Buchdruck) when the plan had one step, because the quiz name already
+            // carried it. This wording: the topic in 45 of 45, and addquestions in 30 of 30 where no topic was named
+            // (also after the name answer "Graz Quiz": a name alone is no topic).
             'repair' => [
-                'count asks for questions, but no question source is set. If the user named a topic or gave material for '
-                    . 'the questions, in this message or earlier in the conversation, put it into content. If they named '
-                    . 'none, set addquestions=true.',
+                'count asks for questions, but no question source is set. A topic the user named for the quiz or its '
+                    . 'questions, in this message or earlier in the conversation, is the source: put it into content, '
+                    . 'also when the quiz name already carries it. If they named no topic and gave no material, set '
+                    . 'addquestions=true.',
             ],
             'ambiguities' => [],
         ];

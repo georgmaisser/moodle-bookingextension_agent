@@ -223,6 +223,10 @@ final class quiz_questions_without_source_repair_test extends abstract_agent_tes
         $repair = implode(' ', (array)($result['repair'] ?? []));
         $this->assertStringContainsString('content', $repair);
         $this->assertStringContainsString('addquestions=true', $repair);
+        // With a one-step plan the retry kept the topic in the quiz name only (5 of 30 replay calls) until the text
+        // said that a topic in the name is still the source; a name alone stays no topic (15 of 15).
+        $this->assertStringContainsString('also when the quiz name already carries it', $repair);
+        $this->assertStringContainsString('named no topic and gave no material', $repair);
         $this->assertStringContainsString('Which questions should I add', implode(' ', (array)($result['errors'] ?? [])));
     }
 
