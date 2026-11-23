@@ -17,6 +17,7 @@
 namespace bookingextension_agent\privacy;
 
 use context;
+use context_system;
 use context_user;
 use core_privacy\local\metadata\collection;
 use core_privacy\local\request\approved_contextlist;
@@ -69,6 +70,12 @@ class provider implements
 
     /** The embeddings area whose rows reference (possibly user-authored) site content. */
     private const SITE_AREA = 'site_content';
+
+    /** @var string Pinned benchmark baselines: site configuration that names the user who pinned it. */
+    private const BASELINES_TABLE = 'bx_agent_bm_baselines';
+
+    /** @var string Site search scope rules: site configuration that names the user who last changed it. */
+    private const SCOPE_TABLE = 'bx_agent_search_scope';
 
     /**
      * Describe the personal data stored by this plugin.
@@ -157,6 +164,30 @@ class provider implements
             'privacy:metadata:bx_agent_embeddings'
         );
 
+        // Site configuration that keeps the acting user: the rows stay, a deletion clears the reference.
+        $collection->add_database_table(
+            self::BASELINES_TABLE,
+            [
+                'createdby' => 'privacy:metadata:bx_agent_bm_baselines:createdby',
+                'label' => 'privacy:metadata:bx_agent_bm_baselines:label',
+                'description' => 'privacy:metadata:bx_agent_bm_baselines:description',
+                'timecreated' => 'privacy:metadata:bx_agent_bm_baselines:timecreated',
+            ],
+            'privacy:metadata:bx_agent_bm_baselines'
+        );
+
+        $collection->add_database_table(
+            self::SCOPE_TABLE,
+            [
+                'usermodified' => 'privacy:metadata:bx_agent_search_scope:usermodified',
+                'area' => 'privacy:metadata:bx_agent_search_scope:area',
+                'scopetype' => 'privacy:metadata:bx_agent_search_scope:scopetype',
+                'scopeid' => 'privacy:metadata:bx_agent_search_scope:scopeid',
+                'timemodified' => 'privacy:metadata:bx_agent_search_scope:timemodified',
+            ],
+            'privacy:metadata:bx_agent_search_scope'
+        );
+
         // User-entered content is forwarded to an external LLM provider for processing.
         $collection->add_external_location_link(
             'llm_provider',
@@ -213,6 +244,14 @@ class provider implements
             $contextlist->add_user_context($userid);
         }
 
+        // Pinned baselines and search scope rules are site-wide configuration: the system context.
+        if (
+            $DB->record_exists(self::BASELINES_TABLE, ['createdby' => $userid])
+                || $DB->record_exists(self::SCOPE_TABLE, ['usermodified' => $userid])
+        ) {
+            $contextlist->add_system_context();
+        }
+
         return $contextlist;
     }
 
@@ -248,6 +287,20 @@ class provider implements
         ) {
             $userlist->add_user($context->instanceid);
         }
+
+        // The users who pinned a baseline or changed a search scope rule: site-wide, so the system context only.
+        if ($context instanceof context_system) {
+            $userlist->add_from_sql(
+                'createdby',
+                "SELECT createdby FROM {" . self::BASELINES_TABLE . "} WHERE createdby > 0",
+                []
+            );
+            $userlist->add_from_sql(
+                'usermodified',
+                "SELECT usermodified FROM {" . self::SCOPE_TABLE . "} WHERE usermodified > 0",
+                []
+            );
+        }
     }
 
     /**
@@ -272,6 +325,76 @@ class provider implements
 
             // Site-content embeddings: index entries of content this user authored in this context.
             self::export_site_embeddings($context, $userid);
+
+            // Site configuration the user wrote: pinned baselines and search scope rules.
+            if ($context instanceof context_system) {
+                self::export_site_configuration($context, $userid);
+            }
+        }
+    }
+
+    /**
+     * Export the pinned benchmark baselines and the site search scope rules that name the user.
+     *
+     * @param context $context the system context
+     * @param int $userid
+     * @return void
+     */
+    private static function export_site_configuration(context $context, int $userid): void {
+        global $DB;
+
+        $baselines = [];
+        $records = $DB->get_recordset(self::BASELINES_TABLE, ['createdby' => $userid], 'timecreated ASC, id ASC');
+        foreach ($records as $record) {
+            $baselines[] = (object)[
+                'label' => (string)($record->label ?? ''),
+                'description' => (string)($record->description ?? ''),
+                'timecreated' => transform::datetime((int)$record->timecreated),
+            ];
+        }
+        $records->close();
+        if (!empty($baselines)) {
+            writer::with_context($context)->export_data(
+                [get_string('privacy:path:baselines', 'bookingextension_agent')],
+                (object)['baselines' => $baselines]
+            );
+        }
+
+        $rules = [];
+        $records = $DB->get_recordset(self::SCOPE_TABLE, ['usermodified' => $userid], 'timemodified ASC, id ASC');
+        foreach ($records as $record) {
+            $rules[] = (object)[
+                'area' => (string)$record->area,
+                'scopetype' => (string)$record->scopetype,
+                'scopeid' => (int)$record->scopeid,
+                'enabled' => transform::yesno((int)$record->enabled),
+                'includefiles' => transform::yesno((int)$record->includefiles),
+                'timemodified' => transform::datetime((int)$record->timemodified),
+            ];
+        }
+        $records->close();
+        if (!empty($rules)) {
+            writer::with_context($context)->export_data(
+                [get_string('privacy:path:searchscope', 'bookingextension_agent')],
+                (object)['rules' => $rules]
+            );
+        }
+    }
+
+    /**
+     * Clear the reference to the acting user in the site configuration tables. The rows are configuration of the
+     * site and stay; only the user id goes.
+     *
+     * @param string $extrawhere WHERE clause on the user field, with the placeholder {field}; empty for every user
+     * @param array $params parameters of the clause
+     * @return void
+     */
+    private static function anonymise_site_configuration(string $extrawhere, array $params): void {
+        global $DB;
+
+        foreach ([self::BASELINES_TABLE => 'createdby', self::SCOPE_TABLE => 'usermodified'] as $table => $field) {
+            $where = $extrawhere === '' ? "{$field} > 0" : str_replace('{field}', $field, $extrawhere);
+            $DB->set_field_select($table, $field, 0, $where, $params);
         }
     }
 
@@ -447,6 +570,10 @@ class provider implements
         if ($context instanceof context_user) {
             $DB->delete_records(self::MEMORY_TABLE, ['userid' => $context->instanceid]);
         }
+
+        if ($context instanceof context_system) {
+            self::anonymise_site_configuration('', []);
+        }
     }
 
     /**
@@ -474,6 +601,10 @@ class provider implements
 
             if ($context instanceof context_user && (int)$context->instanceid === $userid) {
                 $DB->delete_records(self::MEMORY_TABLE, ['userid' => $userid]);
+            }
+
+            if ($context instanceof context_system) {
+                self::anonymise_site_configuration('{field} = :actorid', ['actorid' => $userid]);
             }
         }
     }
@@ -506,6 +637,11 @@ class provider implements
 
         if ($context instanceof context_user && in_array($context->instanceid, $userids)) {
             $DB->delete_records(self::MEMORY_TABLE, ['userid' => $context->instanceid]);
+        }
+
+        if ($context instanceof context_system) {
+            [$actorinsql, $actorinparams] = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'actor');
+            self::anonymise_site_configuration("{field} {$actorinsql}", $actorinparams);
         }
     }
 
