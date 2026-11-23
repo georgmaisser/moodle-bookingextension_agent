@@ -290,6 +290,12 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
      * @return array{valid:bool,errors:string[],ambiguities:string[]}
      */
     public function check_structure(array $input): array {
+        // Questions asked for, no source, and the constructor does not say that none was named: one repair round
+        // before the user is asked (see quiz_question_service::questions_without_source_issue()).
+        $nosource = quiz_question_service::questions_without_source_issue($input, 'Which questions should I add?');
+        if ($nosource !== null) {
+            return $nosource;
+        }
         return ['valid' => true, 'errors' => [], 'ambiguities' => []];
     }
 

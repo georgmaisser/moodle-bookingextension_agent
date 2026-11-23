@@ -159,6 +159,48 @@ class quiz_question_service {
     }
 
     /**
+     * Structural issue of a quiz command that asks for questions (a count or question types) but names no source
+     * and does not carry addquestions, the field with which the constructor says that the user named none.
+     *
+     * Such a command would end as the "which source?" question although the request may name the topic
+     * (demo2 threads 86/88, 2026-11-19: "a quiz with ten questions about Graz" built as {name, count}; 8 of 20
+     * end-to-end runs on 2026-11-23). Returned without RECOVERABLE_INPUT_ERROR on purpose: the engine then grants
+     * its one construction retry with the repair text (c419bff). The repair text names addquestions=true as the way
+     * out, so a request without a topic still reaches the question; a second mismatch ends as that question too.
+     *
+     * @param array $input The constructed command input.
+     * @param string $lead Lead sentence of the question for the user (the retry was not enough).
+     * @return array|null The check_structure result, or null when the command is fine in this respect.
+     */
+    public static function questions_without_source_issue(array $input, string $lead): ?array {
+        $filled = static fn(string $key): bool => trim((string)($input[$key] ?? '')) !== '';
+        $wanted = (int)($input['count'] ?? 0) > 0 || !empty(array_filter((array)($input['qtypes'] ?? [])));
+        if (!$wanted || preview_support::truthy($input['addquestions'] ?? null)) {
+            return null;
+        }
+        $hassource = $filled('content')
+            || $filled('category')
+            || (int)($input['resourcecmid'] ?? 0) > 0
+            || preview_support::truthy($input['usecoursepdfs'] ?? null)
+            || !empty(array_filter(array_map('intval', (array)($input['questionids'] ?? []))));
+        if ($hassource) {
+            return null;
+        }
+        return [
+            'valid' => false,
+            // The user's side of it, should the retry not heal: the same question the skill asks in preflight.
+            'errors' => [preg_replace('/\s+/', ' ', self::build_source_clarification([], $lead)['message'])],
+            // The planner's side of it (never shown to the user).
+            'repair' => [
+                'count asks for questions, but no question source is set. If the user named a topic or gave material for '
+                    . 'the questions, in this message or earlier in the conversation, put it into content. If they named '
+                    . 'none, set addquestions=true.',
+            ],
+            'ambiguities' => [],
+        ];
+    }
+
+    /**
      * Build the "which question source?" clarification content (message lines + selectable options).
      *
      * Shared by the add/update quiz skills, which supply their own lead sentence and issue code.
