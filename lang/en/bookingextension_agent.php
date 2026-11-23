@@ -411,6 +411,7 @@ $string['agent_scaffold_generated'] = 'Generated a starter template for skill "{
 $string['agent_scaffold_preview_heading'] = 'Your skill template is ready';
 $string['agent_search_skills_query_required'] = 'Please say what kind of action you are looking for.';
 $string['agent_setup_details'] = 'Setup status';
+$string['agent_skill_denied_generic'] = 'The capability "{$a->skill}" cannot be used here (reason: {$a->reason}).';
 $string['agent_skill_denied_missing_capability'] = 'You do not have permission to use this capability.';
 $string['agent_skill_denied_requires_pro'] = 'This task is only available with a Wunderbyte Pro license or a Wunderbyte subscription. You can get both here: [Get Pro](https://showroom.wunderbyte.at/course/view.php?id=62).';
 $string['agent_skill_denied_unavailable'] = 'This capability is not available on this system because it is not enabled here.';

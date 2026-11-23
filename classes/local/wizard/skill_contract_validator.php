@@ -300,7 +300,7 @@ class skill_contract_validator {
      * @param string $skillname
      * @return string|null
      */
-    public static function get_user_facing_deny_message(string $reason, string $skillname): ?string {
+    public static function get_user_facing_deny_message(string $reason, string $skillname): string {
         switch ($reason) {
             case self::DENY_REQUIRES_PRO:
                 return get_string('agent_skill_denied_requires_pro', 'bookingextension_agent', (object)[
@@ -316,7 +316,12 @@ class skill_contract_validator {
                 // Not an error: the capability is simply not available/enabled on this system.
                 return get_string('agent_skill_denied_unavailable', 'bookingextension_agent');
             default:
-                return null;
+                // Every other reason (wrong context, unsupported version, not allowed for this request) names
+                // the skill and the reason code.
+                return get_string('agent_skill_denied_generic', 'bookingextension_agent', (object)[
+                    'skill' => $skillname,
+                    'reason' => $reason,
+                ]);
         }
     }
 

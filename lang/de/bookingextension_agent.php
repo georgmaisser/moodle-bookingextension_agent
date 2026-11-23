@@ -401,6 +401,7 @@ $string['agent_scaffold_generated'] = 'Starter-Vorlage für Skill "{$a->skillnam
 $string['agent_scaffold_preview_heading'] = 'Deine Skill-Vorlage ist fertig';
 $string['agent_search_skills_query_required'] = 'Bitte sag mir, nach welcher Art von Aktion ich suchen soll.';
 $string['agent_setup_details'] = 'Setup-Status';
+$string['agent_skill_denied_generic'] = 'Die Funktion „{$a->skill}“ kann hier nicht verwendet werden (Grund: {$a->reason}).';
 $string['agent_skill_denied_missing_capability'] = 'Sie haben nicht die Berechtigung, diese Funktion zu nutzen.';
 $string['agent_skill_denied_requires_pro'] = 'Dieser Task ist nur mit einer Pro-Lizenz oder einem Abo über Wunderbyte möglich. Beides können Sie hier erhalten: [Get Pro](https://showroom.wunderbyte.at/course/view.php?id=62).';
 $string['agent_skill_denied_unavailable'] = 'Diese Funktion ist auf diesem System nicht verfügbar, da sie hier nicht aktiviert ist.';

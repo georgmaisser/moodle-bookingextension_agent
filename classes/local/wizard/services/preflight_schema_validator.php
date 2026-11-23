@@ -21,6 +21,11 @@ namespace bookingextension_agent\local\wizard\services;
 /**
  * Validates command payloads against the central command schema.
  *
+ * The error texts are technical diagnostics about a command the model built ("Field input must be an object").
+ * They go back to the model as repair input and into the technical error list of the web service response
+ * (errorsjson), which the page shows only in the administrator's debug mode. The chat message is written
+ * separately. So they stay English like the field names they quote and are not language strings.
+ *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later

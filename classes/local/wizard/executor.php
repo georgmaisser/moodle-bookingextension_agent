@@ -183,8 +183,7 @@ class executor implements agent_executor {
                 $denymessage = skill_contract_validator::get_user_facing_deny_message($denyreason, (string)$skillname);
                 $results[] = [
                     'status' => 'error',
-                    'detail' => $denymessage
-                        ?? ('Skill denied by governance gate (' . $denyreason . '): ' . (string)$skillname),
+                    'detail' => $denymessage,
                     'resultid' => null,
                     'deny_reason' => $denyreason,
                     'issue_codes' => [

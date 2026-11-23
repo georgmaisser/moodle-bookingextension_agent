@@ -1270,9 +1270,7 @@ class interpreter implements agent_interpreter {
                     $evaluation = $evaluator->evaluate_skill($selection->skillname, $userid, $contextid);
                     $denyreason = (string)($evaluation['deny_reason'] ?? skill_contract_validator::DENY_NOT_REGISTERED);
                     $denymessage = skill_contract_validator::get_user_facing_deny_message($denyreason, $selection->skillname);
-                    $errors[] = $denymessage !== null
-                        ? "$label: " . $denymessage
-                        : "$label: skill '" . $selection->skillname . "' denied by governance gate (" . $denyreason . ").";
+                    $errors[] = "$label: " . $denymessage;
                     if ($denyreason === skill_contract_validator::DENY_NOT_REGISTERED) {
                         // F62 (Lauf 8, thread 1537): a skill name that is not registered at all is a
                         // planner slip (e.g. a constructor inventing "mod_booking.search_users"), not an

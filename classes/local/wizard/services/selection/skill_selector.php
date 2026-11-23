@@ -66,7 +66,12 @@ class skill_selector {
                 max(1, (int)($command['version'] ?? 1)),
                 null,
                 false,
-                ["$label: skill '$skillname' denied by governance gate (not_allowed)."]
+                [
+                    "$label: " . \bookingextension_agent\local\wizard\skill_contract_validator::get_user_facing_deny_message(
+                        'not_allowed',
+                        $skillname
+                    ),
+                ]
             );
         }
 
