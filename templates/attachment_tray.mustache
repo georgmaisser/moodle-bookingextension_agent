@@ -1,0 +1,48 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    The files waiting to be sent with the next chat message: one chip per file with its name, a
+    thumbnail or a document icon, and a button that removes it.
+
+    Rendered by aiinstructions.js into the attachment tray above the chat input.
+
+    @template bookingextension_agent/attachment_tray
+
+    @package    bookingextension_agent
+    @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
+    @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+
+    Context variables required for this template:
+    * attachments - List of waiting files, each with:
+      * idx - Position in the list; the remove button carries it.
+      * name - The file name shown to the user.
+      * ispdf - Whether the document icon is shown when there is no thumbnail.
+      * thumbnailhtml - The thumbnail as HTML from the upload web service, or empty.
+
+    Example context (json):
+    {
+        "attachments": [
+            {"idx": 0, "name": "handout.pdf", "ispdf": true, "thumbnailhtml": ""},
+            {"idx": 1, "name": "photo.png", "ispdf": false, "thumbnailhtml": "<img class=\"booking-ai-thumb\" src=\"data:image/png;base64,AAAA\" alt=\"\">"}
+        ]
+    }
+}}
+{{#attachments}}<span class="booking-ai-attachment-chip" data-idx="{{idx}}">
+    {{#thumbnailhtml}}{{{thumbnailhtml}}}{{/thumbnailhtml}}{{^thumbnailhtml}}{{#ispdf}}&#128196;{{/ispdf}}{{/thumbnailhtml}}
+    <span class="booking-ai-attachment-name">{{name}}</span>
+    <button type="button" class="booking-ai-attachment-remove" data-idx="{{idx}}" aria-label="{{#str}}ai_attachment_remove, bookingextension_agent{{/str}}" title="{{#str}}remove, moodle{{/str}}">&#10005;</button>
+</span>{{/attachments}}

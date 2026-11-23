@@ -179,7 +179,10 @@ const buildButton = (label) => {
     link.setAttribute('role', 'button');
     link.setAttribute('aria-label', label);
     link.setAttribute('title', label);
-    link.innerHTML = '<i class="fa fa-magic" aria-hidden="true"></i>';
+    const icon = document.createElement('i');
+    icon.className = 'fa fa-magic';
+    icon.setAttribute('aria-hidden', 'true');
+    link.appendChild(icon);
 
     wrapper.appendChild(link);
     return wrapper;

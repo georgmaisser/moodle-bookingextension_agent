@@ -540,6 +540,31 @@ const appendTemplateMessage = (template, context, meta = null) => {
 };
 
 /**
+ * Append the compact debug metadata below a message. Empty unless the debug mode is on.
+ *
+ * @param {HTMLElement} target The message element.
+ * @param {Object|null} meta Compact debug metadata.
+ * @param {boolean} withJson Whether the JSON details follow the compact line.
+ */
+const appendDebugMeta = (target, meta, withJson = true) => {
+    const html = renderMessageDebugMeta(meta) + (withJson ? renderMessageDebugJson(meta) : '');
+    if (html !== '') {
+        target.insertAdjacentHTML('beforeend', html);
+    }
+};
+
+/**
+ * Create the bubble element of a chat message.
+ *
+ * @returns {HTMLElement}
+ */
+const createBubble = () => {
+    const bubble = document.createElement('div');
+    bubble.classList.add('bubble');
+    return bubble;
+};
+
+/**
  * Append a chat bubble to the message list.
  *
  * @param {string} role      'user' | 'assistant'
@@ -554,11 +579,15 @@ const appendMessage = (role, content, meta = null) => {
     }
     const div = document.createElement('div');
     div.classList.add('booking-ai-msg', role);
-    const bubbleContent = role === 'assistant'
-        ? renderAssistantMessageHtml(content)
-        : escapeHtml(content);
-    div.innerHTML = `<div class="bubble">${bubbleContent}</div>`
-        + `${renderMessageDebugMeta(meta)}${renderMessageDebugJson(meta)}`;
+    const bubble = createBubble();
+    if (role === 'assistant') {
+        // The assistant text is already rendered to HTML (links, lists, emphasis).
+        bubble.innerHTML = renderAssistantMessageHtml(content);
+    } else {
+        bubble.textContent = String(content);
+    }
+    div.appendChild(bubble);
+    appendDebugMeta(div, meta);
     list.appendChild(div);
     list.scrollTop = list.scrollHeight;
     return div;
@@ -577,7 +606,10 @@ const appendPrivacyNote = (content, meta = null) => {
     }
     const div = document.createElement('div');
     div.classList.add('booking-ai-privacy-note');
-    div.innerHTML = `<span>${escapeHtml(content)}</span>${renderMessageDebugMeta(meta)}`;
+    const note = document.createElement('span');
+    note.textContent = String(content);
+    div.appendChild(note);
+    appendDebugMeta(div, meta, false);
     list.appendChild(div);
     list.scrollTop = list.scrollHeight;
 };
@@ -618,8 +650,11 @@ const appendMessageHtml = (role, html, meta = null) => {
     }
     const div = document.createElement('div');
     div.classList.add('booking-ai-msg', role);
-    div.innerHTML = `<div class="bubble">${String(html || '')}</div>`
-        + `${renderMessageDebugMeta(meta)}${renderMessageDebugJson(meta)}`;
+    const bubble = createBubble();
+    // Trusted HTML from the server or from a rendered template.
+    bubble.innerHTML = String(html || '');
+    div.appendChild(bubble);
+    appendDebugMeta(div, meta);
     list.appendChild(div);
     list.scrollTop = list.scrollHeight;
     return div;
@@ -1648,9 +1683,14 @@ const showConfirmPanel = (message, commands, resp = null) => {
     }
 
     const messageHtml = renderAssistantMessageHtml(String(message || '').trim());
-    preview.innerHTML = messageHtml !== ''
-        ? `<div class="booking-ai-confirm-message mb-2">${messageHtml}</div>`
-        : '';
+    preview.replaceChildren();
+    if (messageHtml !== '') {
+        const messageBox = document.createElement('div');
+        messageBox.className = 'booking-ai-confirm-message mb-2';
+        // The assistant text is already rendered to HTML (links, lists, emphasis).
+        messageBox.innerHTML = messageHtml;
+        preview.appendChild(messageBox);
+    }
 
     // Pre-execution preview. Prefer the server-rendered, skill-described proposed_action descriptor
     // (already dispatched from previewjson by the response handler); only fall back to the raw
@@ -1789,7 +1829,7 @@ const appendStepBubble = (label, msgId) => {
         const spinner = el.querySelector('.booking-ai-step-spinner');
         if (spinner) {
             spinner.className = 'booking-ai-step-done';
-            spinner.innerHTML = '✓';
+            spinner.textContent = '✓';
             spinner.removeAttribute('aria-hidden');
         }
     });
@@ -1798,8 +1838,15 @@ const appendStepBubble = (label, msgId) => {
     div.classList.add('booking-ai-msg', 'booking-ai-msg-step');
     div.dataset.stepMsgId = String(msgId);
     const formattedLabel = renderTextWithLinks(String(label || ''));
-    div.innerHTML = '<span class="booking-ai-step-spinner" aria-hidden="true"></span>'
-        + `<span class="booking-ai-step-label">${formattedLabel}</span>`;
+    const spinner = document.createElement('span');
+    spinner.className = 'booking-ai-step-spinner';
+    spinner.setAttribute('aria-hidden', 'true');
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'booking-ai-step-label';
+    // The label is escaped text with its URLs turned into links.
+    labelSpan.innerHTML = formattedLabel;
+    div.appendChild(spinner);
+    div.appendChild(labelSpan);
     list.appendChild(div);
     list.scrollTop = list.scrollHeight;
     activeStepBubbles.push(div);
@@ -1912,6 +1959,9 @@ const refreshThreadDebugLogs = () => {
 // Attachment handling
 // ---------------------------------------------------------------------------
 
+/** @type {number} Counts the tray renderings, so a slower earlier rendering never replaces a later one. */
+let attachmentTrayRendering = 0;
+
 /**
  * Render the attachment tray from the current pendingAttachments list.
  */
@@ -1920,24 +1970,28 @@ const renderAttachmentTray = () => {
     if (!tray) {
         return;
     }
+    attachmentTrayRendering++;
+    const rendering = attachmentTrayRendering;
     if (pendingAttachments.length === 0) {
-        tray.innerHTML = '';
+        tray.replaceChildren();
         tray.classList.add('d-none');
         return;
     }
     tray.classList.remove('d-none');
-    tray.innerHTML = pendingAttachments.map((att, idx) => {
-        const thumb = att.thumbnailHtml || '';
-        const name = String(att.displayName || '').replace(/</g, '&lt;');
-        const icon = att.attachment_type === 'pdf' ? '&#128196;' : '';
-        return `<span class="booking-ai-attachment-chip" data-idx="${idx}">
-            ${thumb || icon}
-            <span class="booking-ai-attachment-name">${name}</span>
-            <button type="button" class="booking-ai-attachment-remove" data-idx="${idx}"
-                    aria-label="${escapeHtml(uiString('ai_attachment_remove'))}"
-                    title="${escapeHtml(uiString('remove'))}">&#10005;</button>
-        </span>`;
-    }).join('');
+    Templates.renderForPromise('bookingextension_agent/attachment_tray', {
+        attachments: pendingAttachments.map((att, idx) => ({
+            idx,
+            name: String(att.displayName || ''),
+            // The upload stores the kind as type; the tray read attachment_type before and never showed the icon.
+            ispdf: att.type === 'pdf',
+            thumbnailhtml: att.thumbnailHtml || '',
+        })),
+    }).then(({html, js}) => {
+        if (rendering === attachmentTrayRendering) {
+            Templates.replaceNodeContents(tray, html.trim(), js);
+        }
+        return null;
+    }).catch(Notification.exception);
 };
 
 /**
@@ -2688,7 +2742,7 @@ const requestTrialKey = (strategy) => {
     }
     if (ctx.trialResult) {
         ctx.trialResult.classList.add('d-none');
-        ctx.trialResult.innerHTML = '';
+        ctx.trialResult.replaceChildren();
     }
 
     Ajax.call([{
@@ -2783,7 +2837,7 @@ const storeProviderApiKey = (saveBtn) => {
     saveBtn.disabled = true;
     if (result) {
         result.classList.add('d-none');
-        result.innerHTML = '';
+        result.replaceChildren();
     }
 
     Ajax.call([{
@@ -2800,16 +2854,14 @@ const storeProviderApiKey = (saveBtn) => {
         saveBtn.disabled = false;
         if (result) {
             result.classList.remove('d-none');
-            result.innerHTML = '<span class="text-danger">'
-                + renderTextWithLinks((resp && resp.message) || '') + '</span>';
+            showSetupError(result, (resp && resp.message) || '', false);
         }
         return resp;
     }).catch((err) => {
         saveBtn.disabled = false;
         if (result) {
             result.classList.remove('d-none');
-            result.innerHTML = '<span class="text-danger">'
-                + renderTextWithLinks(err.message || '') + '</span>';
+            showSetupError(result, err.message || '', false);
         }
         Notification.exception(err);
     });
@@ -2923,7 +2975,7 @@ const configureFromExistingProvider = () => {
     }
     if (ctx.trialResult) {
         ctx.trialResult.classList.add('d-none');
-        ctx.trialResult.innerHTML = '';
+        ctx.trialResult.replaceChildren();
     }
 
     Ajax.call([{
@@ -3476,6 +3528,7 @@ export const init = (jsModulesOrConfig = {}, config = null) => {
     // Load the chat panel templates now, so rendering them later needs no extra round trip.
     Templates.prefetchTemplates([
         'bookingextension_agent/ambiguity_options',
+        'bookingextension_agent/attachment_tray',
         'bookingextension_agent/command_list',
         'bookingextension_agent/debug_logs',
         'bookingextension_agent/debug_run',
