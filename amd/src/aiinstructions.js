@@ -2810,6 +2810,25 @@ const reloadAgentPanel = (ctx) => {
 };
 
 /**
+ * Show why the API key was not stored, below the key field. Without a text the area stays hidden.
+ *
+ * @param {HTMLElement|null} result The result area below the key field.
+ * @param {string} text The error text; URLs in it become links.
+ */
+const showKeyError = (result, text) => {
+    if (!result) {
+        return;
+    }
+    if (String(text || '').trim() === '') {
+        result.classList.add('d-none');
+        result.replaceChildren();
+        return;
+    }
+    result.classList.remove('d-none');
+    showSetupError(result, text, false);
+};
+
+/**
  * Store a purchased Wunderbyte API key (from the connect screen or the admin gear) and reload the panel.
  *
  * The key is sent ONLY to the dedicated store webservice (never as a chat message / to the LLM).
@@ -2852,17 +2871,11 @@ const storeProviderApiKey = (saveBtn) => {
             return resp;
         }
         saveBtn.disabled = false;
-        if (result) {
-            result.classList.remove('d-none');
-            showSetupError(result, (resp && resp.message) || '', false);
-        }
+        showKeyError(result, (resp && resp.message) || '');
         return resp;
     }).catch((err) => {
         saveBtn.disabled = false;
-        if (result) {
-            result.classList.remove('d-none');
-            showSetupError(result, err.message || '', false);
-        }
+        showKeyError(result, err.message || '');
         Notification.exception(err);
     });
 };
