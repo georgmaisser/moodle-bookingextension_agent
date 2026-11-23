@@ -166,8 +166,11 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
                 ],
                 'content' => [
                     'type' => 'string',
-                    'description' => 'Source material to generate questions from: a topic, facts or document text the user gave. '
-                        . 'Never write the questions yourself.',
+                    // Demo2 threads 86/88 (2026-11-19): "a quiz with ten questions about Graz" was built without content.
+                    // Measured on the recorded calls: the topic reaches content in 15 of 15 with this text (2 to 6 before).
+                    // The document text stays first - see add_quiz_topic_is_a_source_test.
+                    'description' => 'Source material to generate questions from: document text or facts the user gave, or the '
+                        . 'topic they named - a source too. Never write the questions yourself.',
                     'required' => false,
                 ],
                 'usecoursepdfs' => [
