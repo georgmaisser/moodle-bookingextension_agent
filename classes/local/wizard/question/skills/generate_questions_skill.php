@@ -262,8 +262,12 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                 . 'into the question bank").',
             'is' => 'Questions in the question bank.',
             // Wave 30 (UQ-4): "add questions from the PDF to the quiz" belongs to update_quiz since it reads course PDFs.
-            'not' => 'Creating the quiz activity itself (course.add_quiz); questions for an existing quiz '
-                . '(course.update_quiz); other activities or resources (course.add_activity).',
+            // 2812: "a quiz with ten questions about Graz" was planned as add_quiz plus this skill in 14 of 20
+            // end-to-end runs; in 3 of them a second card offered the ten questions once more. The line named only
+            // "the quiz activity itself", so the questions of a new quiz looked like this skill's part. The registry
+            // cuts a clause at 160 characters (skill_registry::DISCRIMINATION_CAP): keep the line below that.
+            'not' => 'A new quiz, with or without questions (course.add_quiz generates them itself); an existing quiz '
+                . '(update_quiz); other activities or resources (add_activity).',
             'readonly' => false,
             'example_utterances' => [
                 // Wave 32 review: no anchor repeats the shape of a test prompt (GQ-1 "turn it into ... bank questions").

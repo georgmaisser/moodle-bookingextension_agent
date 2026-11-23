@@ -94,6 +94,30 @@ final class quiz_and_question_cards_do_not_overlap_test extends advanced_testcas
     }
 
     /**
+     * A new quiz and its questions are one step. "A quiz with ten questions about Graz" (demo2 threads 86 and 88,
+     * measured on the VM on 2026-11-23) was planned as add_quiz plus generate_questions in 14 of 20 end-to-end runs,
+     * and in 3 of them the user got a second card for ten more questions after the quiz had its ten. The NOT line of
+     * generate_questions named only "the quiz activity itself"; it now says that add_quiz generates the questions
+     * of the quiz it creates (selector replay: one step in 30 of 30, the 12 quiz prompts of the baseline keep their
+     * skill in 15 of 15 each). An IS line on add_quiz instead moved the dictated question (GQ-4) to add_quiz.
+     *
+     * The line stays within the registry cap: a first wording of 202 characters was cut to "... other acti" in the
+     * live card and lost its fence to add_activity. "its questions" instead of "questions" made the selector plan a
+     * quiz step after the dictated question in 15 of 15 calls (this wording: 7, the old line: 9).
+     */
+    public function test_generate_questions_leaves_the_questions_of_a_new_quiz_to_add_quiz(): void {
+        $not = (string)(new generate_questions_skill())->get_schema()['not'];
+        $this->assertStringContainsString('with or without questions', $not);
+        $this->assertStringContainsString('course.add_quiz generates them itself', $not);
+        $this->assertStringContainsString('(update_quiz)', $not, 'the fence to update_quiz stays (4b2c436)');
+        $this->assertStringContainsString('(add_activity)', $not, 'the fence to add_activity stays');
+        $cap = \bookingextension_agent\local\wizard\skill_registry::DISCRIMINATION_CAP;
+        $this->assertLessThanOrEqual($cap, \core_text::strlen($not), 'a longer clause is cut in the card');
+        $is = (string)(new add_quiz_skill())->get_schema()['is'];
+        $this->assertSame('Creating the quiz activity itself.', $is, 'IS variants moved GQ-4 to add_quiz (2812)');
+    }
+
+    /**
      * add_quiz says in its WHEN line that the questions may come from an uploaded document.
      */
     public function test_add_quiz_covers_a_test_from_a_document(): void {
