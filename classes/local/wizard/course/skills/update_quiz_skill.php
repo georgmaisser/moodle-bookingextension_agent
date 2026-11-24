@@ -215,6 +215,15 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
                     'description' => 'How many random questions from the category (default 5).',
                     'required' => false,
                 ],
+                'questionsource' => [
+                    'type' => 'string',
+                    // As in course.add_quiz (2812): the answer to the question with the three options that names an
+                    // option and not yet the source. Same wording, same place after the other question fields.
+                    'description' => 'What the user chose while the source itself is still missing: topic = you make the '
+                        . 'questions up, material = a document they will give, category = existing ones.',
+                    'enum' => quiz_question_service::SOURCE_KINDS,
+                    'required' => false,
+                ],
                 'coursequery' => [
                     'type' => 'string',
                     'description' => 'Target a DIFFERENT course, ONLY when named. Leave empty for the current course.',
@@ -349,7 +358,11 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
         $plan = $service->resolve_source($input, $coursecontext, $userid);
 
         if (($plan['mode'] ?? '') === 'clarify') {
-            return $this->build_source_clarification($service->list_available_categories($coursecontext, $userid));
+            return $this->build_source_clarification(
+                (array)($plan['categories'] ?? []),
+                '',
+                (string)($plan['sourcekind'] ?? '')
+            );
         }
         if (($plan['mode'] ?? '') === 'generate' && isset($plan['pdfsource'])) {
             // The course PDFs as source (wave 30, UQ-4): a missing or unreadable PDF is a question, not an error.
@@ -627,15 +640,17 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
     }
 
     /**
-     * Build the question-source clarification (three options + available categories).
+     * Build the question-source clarification (three options + available categories), or the question for the one
+     * kind of source the user already chose.
      *
      * @param array[] $categories
      * @param string $lead
+     * @param string $kind The chosen kind of source (quiz_question_service::SOURCE_KINDS), '' when none.
      * @return array
      */
-    private function build_source_clarification(array $categories, string $lead = ''): array {
+    private function build_source_clarification(array $categories, string $lead = '', string $kind = ''): array {
         $lead = $lead !== '' ? $lead : 'Which questions should I add?';
-        $content = quiz_question_service::build_source_clarification($categories, $lead);
+        $content = quiz_question_service::build_source_clarification($categories, $lead, $kind);
         return $this->clarify($content['message'], 'UPDATE_QUIZ_QUESTION_SOURCE', $content['options']);
     }
 

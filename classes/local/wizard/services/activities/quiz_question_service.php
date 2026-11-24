@@ -50,6 +50,9 @@ class quiz_question_service {
     /** Supported generation question types (mirrors generate_questions). */
     private const ALLOWED_QTYPES = ['multichoice', 'truefalse', 'shortanswer'];
 
+    /** Kinds of question source a user can choose before naming the source itself (input field questionsource). */
+    public const SOURCE_KINDS = ['topic', 'material', 'category'];
+
     /**
      * Ensure a quiz $moduleinfo carries well-formed overall-feedback fields for add/update_moduleinfo.
      *
@@ -138,11 +141,17 @@ class quiz_question_service {
             ];
         }
 
-        // Wanted questions but gave no source → ask, listing the available categories.
+        // Wanted questions but gave no source → ask, listing the available categories. A kind of source the user
+        // already chose (questionsource) narrows the question to that source.
+        $kind = self::chosen_source_kind($input);
         $wants = (bool)($input['addquestions'] ?? false)
-            || $count > 0 || $randomcount > 0 || !empty($qtypes);
+            || $count > 0 || $randomcount > 0 || !empty($qtypes) || $kind !== '';
         if ($wants) {
-            return ['mode' => 'clarify', 'categories' => $this->list_available_categories($coursecontext, $userid)];
+            return [
+                'mode' => 'clarify',
+                'sourcekind' => $kind,
+                'categories' => $this->list_available_categories($coursecontext, $userid),
+            ];
         }
         return ['mode' => 'none'];
     }
@@ -156,6 +165,22 @@ class quiz_question_service {
      */
     public function list_available_categories(context $coursecontext, int $userid): array {
         return (new question_bank_target_resolver())->list_writable_targets($coursecontext, $userid);
+    }
+
+    /**
+     * The kind of source the user chose while the source itself is still missing (input field questionsource).
+     *
+     * After the question with the three options, an answer like "make them up yourself" names an option and no
+     * topic. Without a place for that the command came back as {name, addquestions, count} and the skill repeated
+     * its question word for word (2812: 30 of 40 recorded constructor calls on that answer; end-to-end, 2 of 10 and
+     * 1 of 9 conversations ended there without a quiz).
+     *
+     * @param array $input The constructed command input.
+     * @return string One of SOURCE_KINDS, or '' when none or an unknown value is given.
+     */
+    public static function chosen_source_kind(array $input): string {
+        $kind = \core_text::strtolower(trim((string)($input['questionsource'] ?? '')));
+        return in_array($kind, self::SOURCE_KINDS, true) ? $kind : '';
     }
 
     /**
@@ -175,7 +200,9 @@ class quiz_question_service {
     public static function questions_without_source_issue(array $input, string $lead): ?array {
         $filled = static fn(string $key): bool => trim((string)($input[$key] ?? '')) !== '';
         $wanted = (int)($input['count'] ?? 0) > 0 || !empty(array_filter((array)($input['qtypes'] ?? [])));
-        if (!$wanted || preview_support::truthy($input['addquestions'] ?? null)) {
+        // A chosen kind of source says what addquestions says: the source is still open, the preflight asks for it.
+        $open = preview_support::truthy($input['addquestions'] ?? null) || self::chosen_source_kind($input) !== '';
+        if (!$wanted || $open) {
             return null;
         }
         $hassource = $filled('content')
@@ -208,21 +235,63 @@ class quiz_question_service {
     /**
      * Build the "which question source?" clarification content (message lines + selectable options).
      *
-     * Shared by the add/update quiz skills, which supply their own lead sentence and issue code.
+     * Shared by the add/update quiz skills, which supply their own lead sentence and issue code. When the user already
+     * chose the kind of source ($kind, see chosen_source_kind()), the question asks for that source only: offering
+     * the options again would repeat the question the user just answered.
      *
      * @param array[] $categories
      * @param string $lead Already-resolved lead sentence.
+     * @param string $kind One of SOURCE_KINDS, or '' for the question with the three options.
      * @return array{message:string, options:array[]}
      */
-    public static function build_source_clarification(array $categories, string $lead): array {
+    public static function build_source_clarification(array $categories, string $lead, string $kind = ''): array {
+        if ($kind === 'topic') {
+            return ['message' => 'On which topic should I make up the questions?', 'options' => []];
+        }
+        if ($kind === 'material') {
+            return [
+                'message' => 'Which material should the questions come from? Attach the document or PDF, paste the text, '
+                    . 'or tell me to use the PDFs stored in the course.',
+                'options' => [],
+            ];
+        }
+        [$categorylines, $options] = self::category_lines($categories);
+        if ($kind === 'category') {
+            if (empty($categories)) {
+                return [
+                    'message' => 'There is no question category here that I could take questions from. I can make up '
+                        . 'questions on a topic you name, or generate them from material you give me.',
+                    'options' => [],
+                ];
+            }
+            $lines = array_merge(['From which question category should I take the questions?', ''], $categorylines);
+            return ['message' => implode("\n", $lines), 'options' => $options];
+        }
+
         $lines = [$lead, ''];
         $lines[] = '- Generate new questions from a document/PDF or material you give me';
         $lines[] = '- Let me make up questions on a topic you name';
         $lines[] = '- Use existing questions from a question category';
+        if (!empty($categorylines)) {
+            $lines[] = '';
+            $lines = array_merge($lines, $categorylines);
+        }
+        $lines[] = '';
+        $lines[] = 'Tell me which option (and the topic/PDF or the category).';
 
+        return ['message' => implode("\n", $lines), 'options' => $options];
+    }
+
+    /**
+     * The available question categories as message lines and as selectable options.
+     *
+     * @param array[] $categories
+     * @return array{0:string[],1:array[]} The lines (none without categories) and the options.
+     */
+    private static function category_lines(array $categories): array {
+        $lines = [];
         $options = [];
         if (!empty($categories)) {
-            $lines[] = '';
             $lines[] = 'Available categories:';
             foreach ($categories as $cat) {
                 $lines[] = sprintf(
@@ -239,10 +308,7 @@ class quiz_question_service {
                 ];
             }
         }
-        $lines[] = '';
-        $lines[] = 'Tell me which option (and the topic/PDF or the category).';
-
-        return ['message' => implode("\n", $lines), 'options' => $options];
+        return [$lines, $options];
     }
 
     /**

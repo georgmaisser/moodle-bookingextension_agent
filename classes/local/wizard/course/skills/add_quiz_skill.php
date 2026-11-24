@@ -220,6 +220,19 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
                     'description' => 'How many random questions to take from the category (default 5).',
                     'required' => false,
                 ],
+                'questionsource' => [
+                    'type' => 'string',
+                    // 2812: after the question with the three options, "make them up yourself" names an option and no
+                    // topic. The command had no place for that, came back as {name, addquestions, count} and the skill
+                    // repeated its question (30 of 40 recorded calls on that answer). Wording and position are measured
+                    // (replay, 15 calls per prompt): the kind is set in 15 of 15. Placed before content, the count was
+                    // left out in 6 of 25 calls after an answer that names the topic; here, in none of 15 in the replay
+                    // and in 11 of 60 live conversations (the count question follows, all 11 ended with the quiz).
+                    'description' => 'What the user chose while the source itself is still missing: topic = you make the '
+                        . 'questions up, material = a document they will give, category = existing ones.',
+                    'enum' => quiz_question_service::SOURCE_KINDS,
+                    'required' => false,
+                ],
                 'coursequery' => [
                     'type' => 'string',
                     // L45 AQ-4 (thread 15013): "A DIFFERENT course, only when ..." put the exception first; the constructor left
@@ -370,7 +383,11 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
         $plan = $service->resolve_source($input, $coursecontext, $userid);
 
         if (($plan['mode'] ?? '') === 'clarify') {
-            return $this->build_source_clarification((array)($plan['categories'] ?? []));
+            return $this->build_source_clarification(
+                (array)($plan['categories'] ?? []),
+                '',
+                (string)($plan['sourcekind'] ?? '')
+            );
         }
         if (($plan['mode'] ?? '') === 'generate' && isset($plan['pdfsource'])) {
             // The course PDFs as source (wave 30, UQ-4): a missing or unreadable PDF is a question, not an error.
@@ -557,15 +574,17 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
     }
 
     /**
-     * Build the question-source clarification (the three options + available categories).
+     * Build the question-source clarification (the three options + available categories), or the question for the
+     * one kind of source the user already chose.
      *
      * @param array[] $categories
      * @param string $lead
+     * @param string $kind The chosen kind of source (quiz_question_service::SOURCE_KINDS), '' when none.
      * @return array
      */
-    private function build_source_clarification(array $categories, string $lead = ''): array {
+    private function build_source_clarification(array $categories, string $lead = '', string $kind = ''): array {
         $lead = $lead !== '' ? $lead : 'Which questions should I add to the quiz?';
-        $content = quiz_question_service::build_source_clarification($categories, $lead);
+        $content = quiz_question_service::build_source_clarification($categories, $lead, $kind);
         return $this->clarify($content['message'], 'ADD_QUIZ_QUESTION_SOURCE', $content['options']);
     }
 
