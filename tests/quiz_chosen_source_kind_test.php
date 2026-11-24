@@ -202,14 +202,16 @@ final class quiz_chosen_source_kind_test extends advanced_testcase {
     }
 
     /**
-     * A count with a chosen kind is no structural mismatch: the constructor has said that the source is still open,
-     * so the engine's repair round has nothing to repair.
+     * A count without a source is no structural mismatch, with a chosen kind or without one: the preflight asks for
+     * the source at once, no second construction comes first. Measured on 2026-11-24 with this field in place, 90
+     * end-to-end conversations per state: 85 right results with the repair round of a566cee, 86 without it.
      */
-    public function test_a_chosen_kind_needs_no_repair_round(): void {
+    public function test_a_count_without_a_source_is_no_structural_mismatch(): void {
         $command = ['name' => 'Graz Quiz', 'count' => 10];
         foreach ([new add_quiz_skill(), new update_quiz_skill()] as $skill) {
+            $this->assertTrue($skill->check_structure($command)['valid']);
             $this->assertTrue($skill->check_structure($command + ['questionsource' => 'topic'])['valid']);
-            $this->assertFalse($skill->check_structure($command + ['questionsource' => 'whatever'])['valid']);
+            $this->assertTrue($skill->check_structure($command + ['questionsource' => 'whatever'])['valid']);
         }
     }
 

@@ -332,11 +332,6 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
                 'ambiguities' => [],
             ];
         }
-        // Questions asked for, no source, and the constructor does not say that none was named: one repair round.
-        $nosource = quiz_question_service::questions_without_source_issue($input, 'Which questions should I add to the quiz?');
-        if ($nosource !== null) {
-            return $nosource;
-        }
         return ['valid' => true, 'errors' => [], 'ambiguities' => []];
     }
 

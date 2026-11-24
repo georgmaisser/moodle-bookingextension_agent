@@ -182,4 +182,14 @@ final class add_quiz_skill_test extends advanced_testcase {
         $this->assertSame('hard_block', $result->status);
         $this->assertContains('NO_NATIVE_CAPABILITY', $result->issuecodes);
     }
+
+    /**
+     * Generating from content without a count is the question for the count, asked at once (B4, 3ba8838).
+     */
+    public function test_content_without_count_asks_for_the_count(): void {
+        $result = (new add_quiz_skill())->check_structure(['name' => 'Graz quiz', 'content' => 'Graz']);
+        $this->assertFalse($result['valid']);
+        $this->assertContains('RECOVERABLE_INPUT_ERROR', (array)($result['issue_codes'] ?? []));
+        $this->assertSame(['How many questions should the quiz have?'], $result['errors']);
+    }
 }
